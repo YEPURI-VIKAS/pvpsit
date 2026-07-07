@@ -400,7 +400,7 @@ const Notifications = () => {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex items-center gap-1 shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
                     {item.unread && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleMarkAsRead(item.id); }}

@@ -172,12 +172,52 @@ async function resolveGet(endpoint: string): Promise<any> {
       .from('profiles')
       .select('*');
     handleError(error);
-    return data ?? [];
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      email: row.email,
+      fullName: row.full_name,
+      role: row.role,
+      createdAt: row.created_at,
+    }));
   }
 
-  // GET /login-history/* (not stored in Supabase - return empty gracefully)
-  if (endpoint.startsWith('/login-history/')) {
-    return [];
+  // GET /login-history
+  if (endpoint === '/login-history') {
+    const { data, error } = await supabase
+      .from('login_history')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    if (error && error.code === '42P01') return []; // table doesn't exist yet
+    handleError(error);
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      userId: row.user_id,
+      email: row.email,
+      timestamp: row.timestamp,
+      action: row.action,
+      ipAddress: row.ip_address,
+    }));
+  }
+
+  // GET /login-history/user/:id
+  const historyUserMatch = endpoint.match(/^\/login-history\/user\/([^/]+)$/);
+  if (historyUserMatch) {
+    const id = historyUserMatch[1];
+    const { data, error } = await supabase
+      .from('login_history')
+      .select('*')
+      .eq('user_id', id)
+      .order('timestamp', { ascending: false });
+    if (error && error.code === '42P01') return []; // table doesn't exist yet
+    handleError(error);
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      userId: row.user_id,
+      email: row.email,
+      timestamp: row.timestamp,
+      action: row.action,
+      ipAddress: row.ip_address,
+    }));
   }
 
   throw new Error(`Unhandled GET endpoint: ${endpoint}`);
@@ -230,6 +270,23 @@ async function resolvePost(endpoint: string, body: any): Promise<any> {
       .single();
     handleError(error);
     return toTicket(data);
+  }
+
+  // POST /login-history
+  if (endpoint === '/login-history') {
+    const { data, error } = await supabase
+      .from('login_history')
+      .insert({
+        user_id: body.userId,
+        email: body.email,
+        action: body.action,
+        ip_address: body.ipAddress,
+      })
+      .select()
+      .single();
+    if (error && error.code === '42P01') return {}; // gracefully handle if table not created
+    handleError(error);
+    return data;
   }
 
   throw new Error(`Unhandled POST endpoint: ${endpoint}`);
@@ -304,6 +361,18 @@ async function resolvePatch(endpoint: string, body: any): Promise<any> {
       .single();
     handleError(error);
     return toFacility(data);
+  }
+
+  // PATCH /users/:id/role
+  const userRoleMatch = endpoint.match(/^\/users\/([^/]+)\/role$/);
+  if (userRoleMatch) {
+    const id = userRoleMatch[1];
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role: body.role })
+      .eq('id', id);
+    handleError(error);
+    return {};
   }
 
   throw new Error(`Unhandled PATCH endpoint: ${endpoint}`);

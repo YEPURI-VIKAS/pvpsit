@@ -332,7 +332,7 @@ const Facilities = () => {
                 </div>
               </div>
               
-              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                 <button 
                   onClick={() => handleViewDetails(facility)}
                   className="text-sm font-semibold text-[#1E3A8A] hover:text-[#1E40AF]"
