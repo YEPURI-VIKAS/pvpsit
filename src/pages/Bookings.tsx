@@ -387,9 +387,9 @@ const Bookings = () => {
                         <div 
                           key={item.id} 
                           onClick={() => { setSelectedBooking(item); setIsDetailModalOpen(true); }}
-                          className="flex border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                          className="flex flex-col sm:flex-row border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
                         >
-                          <div className="bg-blue-50 w-32 p-4 flex flex-col justify-center items-center text-center border-r border-gray-100 shrink-0">
+                          <div className="bg-blue-50 w-full sm:w-32 p-4 flex flex-col justify-center items-center text-center border-b sm:border-b-0 sm:border-r border-gray-100 shrink-0">
                             <Clock size={20} className="text-[#1E3A8A] mb-1" />
                             <span className="text-xs font-bold text-gray-900">{startTime}</span>
                             {endTime && (
@@ -471,9 +471,9 @@ const Bookings = () => {
                       <div 
                         key={item.id} 
                         onClick={() => { setSelectedBooking(item); setIsDetailModalOpen(true); }}
-                        className="flex border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                        className="flex flex-col sm:flex-row border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
                       >
-                        <div className="bg-amber-50/50 w-32 p-4 flex flex-col justify-center items-center text-center border-r border-gray-100 shrink-0">
+                        <div className="bg-amber-50/50 w-full sm:w-32 p-4 flex flex-col justify-center items-center text-center border-b sm:border-b-0 sm:border-r border-gray-100 shrink-0">
                           <Clock size={20} className="text-amber-600 mb-1" />
                           <span className="text-xs font-bold text-gray-900 leading-snug">{parsed.displayTime}</span>
                           {parsed.date && (

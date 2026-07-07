@@ -296,7 +296,7 @@ const Dashboard = () => {
       )}
 
       {/* Header Panel with soft glow */}
-      <div className="flex justify-between items-end mb-4 p-6 bg-white/40 backdrop-blur-md border border-white/40 rounded-3xl shadow-sm">
+      <div className="flex flex-col sm:flex-row justify-between sm:items-end items-start mb-4 p-6 bg-white/40 backdrop-blur-md border border-white/40 rounded-3xl shadow-sm gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight font-heading">Dashboard</h1>
           <p className="text-gray-500 mt-1.5 font-medium">Welcome back. Here's what's happening on campus today.</p>

@@ -10,12 +10,14 @@ import {
   LogOut,
   Bell,
   Search,
-  UserCircle
+  UserCircle,
+  Menu,
+  X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -33,15 +35,23 @@ const Sidebar = () => {
   ];
 
   return (
-    <div className="flex flex-col w-64 bg-[#1E3A8A] text-white h-screen fixed left-0 top-0 shadow-2xl z-20">
-      <div className="p-6 flex items-center space-x-3 border-b border-white/10">
-        <div className="bg-white p-2 rounded-xl text-[#1E3A8A]">
-          <DoorOpen size={24} />
+    <div className={`flex flex-col w-64 bg-[#1E3A8A] text-white h-screen fixed left-0 top-0 shadow-2xl z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="p-6 flex items-center justify-between border-b border-white/10">
+        <div className="flex items-center space-x-3">
+          <div className="bg-white p-2 rounded-xl text-[#1E3A8A]">
+            <DoorOpen size={24} />
+          </div>
+          <div>
+            <h1 className="font-heading font-bold text-lg leading-tight">PVPSIT</h1>
+            <p className="text-xs text-blue-200">Facility Manager</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-heading font-bold text-lg leading-tight">PVPSIT</h1>
-          <p className="text-xs text-blue-200">Facility Manager</p>
-        </div>
+        <button 
+          onClick={onClose}
+          className="p-1 rounded-lg hover:bg-white/10 text-white md:hidden"
+        >
+          <X size={20} />
+        </button>
       </div>
       
       <nav className="flex-1 py-6 px-4 space-y-2 overflow-y-auto">
@@ -49,6 +59,7 @@ const Sidebar = () => {
           <NavLink
             key={item.name}
             to={item.path}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                 isActive 
@@ -84,7 +95,7 @@ interface NotificationItem {
   unread: boolean;
 }
 
-const Header = () => {
+const Header = ({ onMenuClick }: { onMenuClick: () => void }) => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -362,9 +373,16 @@ const Header = () => {
           </button>
         </div>
       )}
-      <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-8 sticky top-0 z-10">
-      <div className="flex-1 max-w-xl relative search-container">
-        <div className="relative group">
+      <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-200 flex items-center justify-between px-4 md:px-8 sticky top-0 z-10">
+      <div className="flex items-center space-x-2 flex-1 max-w-xl mr-4 relative search-container">
+        <button 
+          type="button" 
+          onClick={onMenuClick}
+          className="p-2 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 md:hidden focus:outline-none shrink-0"
+        >
+          <Menu size={24} />
+        </button>
+        <div className="flex-1 relative group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#1E3A8A] transition-colors" size={20} />
           <input 
             type="text" 
@@ -613,12 +631,23 @@ const Header = () => {
 };
 
 const Layout = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-[#F3F4F6] flex">
-      <Sidebar />
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
-        <Header />
-        <main className="flex-1 p-8 overflow-y-auto">
+      {/* Sidebar mobile overlay */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)} 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden animate-in fade-in duration-200"
+        />
+      )}
+      
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen">
+        <Header onMenuClick={() => setIsSidebarOpen(true)} />
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
           <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             <Outlet />
           </div>
