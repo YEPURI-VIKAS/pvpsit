@@ -15,6 +15,8 @@ function toBooking(row: any) {
     organizer: row.organizer,
     organizerEmail: row.organizer_email,
     status: row.status,
+    facilityId: row.facility_id,
+    assetId: row.asset_id,
   };
 }
 
@@ -27,6 +29,8 @@ function toBookingRow(body: any) {
     organizer: body.organizer,
     organizer_email: body.organizerEmail ?? body.organizer_email ?? '',
     status: body.status ?? 'Pending',
+    facility_id: body.facilityId ?? body.facility_id ?? null,
+    asset_id: body.assetId ?? body.asset_id ?? null,
   };
 }
 
@@ -39,6 +43,7 @@ function toAsset(row: any) {
     location: row.location,
     status: row.status,
     purchaseDate: row.purchase_date,
+    image: row.image ?? '',
   };
 }
 
@@ -50,6 +55,7 @@ function toAssetRow(body: any) {
     location: body.location,
     status: body.status,
     purchase_date: body.purchaseDate ?? body.purchase_date ?? '',
+    image: body.image ?? '',
   };
 }
 
@@ -406,4 +412,35 @@ export const api = {
     return resolveDelete(endpoint) as Promise<T>;
   },
 };
+
+export async function uploadImage(file: File, bucket: string = 'facility-photos'): Promise<string> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+  const filePath = `${fileName}`;
+
+  const isMock = !(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
+  if (!isMock) {
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+    if (error) {
+      throw error;
+    }
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(filePath);
+    return publicUrl;
+  } else {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+}
 

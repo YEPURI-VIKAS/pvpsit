@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Filter, Download, Monitor, Cpu, Armchair, BookOpen } from 'lucide-react';
 import Modal from '../components/ui/Modal';
-import { api } from '../lib/api';
+import { api, uploadImage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 type Asset = {
@@ -11,6 +11,7 @@ type Asset = {
   location: string;
   status: string;
   purchaseDate: string;
+  image?: string;
 };
 
 const Assets = () => {
@@ -43,8 +44,51 @@ const Assets = () => {
     category: 'Computer',
     location: '',
     status: 'Active',
-    purchaseDate: ''
+    purchaseDate: '',
+    image: ''
   });
+
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const handleAddAssetFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const url = await uploadImage(file, 'facility-photos');
+      setNewAsset(prev => ({ ...prev, image: url }));
+    } catch (err: any) {
+      console.error(err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleEditAssetFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const url = await uploadImage(file, 'facility-photos');
+      if (selectedAsset) {
+        const updated = await api.patch<Asset>(`/assets/${selectedAsset.id}`, {
+          ...selectedAsset,
+          image: url
+        });
+        setAssets(prev => prev.map(a => a.id === selectedAsset.id ? updated : a));
+        setSelectedAsset(updated);
+        alert('Asset photo updated successfully!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const getIcon = (category: string) => {
     switch(category) {
@@ -71,18 +115,26 @@ const Assets = () => {
       category: newAsset.category,
       location: newAsset.location,
       status: newAsset.status,
-      purchaseDate: dateToUse
+      purchaseDate: dateToUse,
+      image: newAsset.image
     };
 
     try {
       const saved = await api.post<Asset>('/assets', assetToInsert);
       setAssets([saved, ...assets]);
       setIsModalOpen(false);
-      setNewAsset({ name: '', category: 'Computer', location: '', status: 'Active', purchaseDate: '' });
+      setNewAsset({ name: '', category: 'Computer', location: '', status: 'Active', purchaseDate: '', image: '' });
     } catch (error) {
       console.error('Error adding asset:', error);
       alert('Failed to add asset.');
     }
+  };
+
+
+
+  const handleViewDetails = (asset: Asset) => {
+    setSelectedAsset(asset);
+    setIsViewModalOpen(true);
   };
 
   const handleDeleteAsset = async (id: string) => {
@@ -195,50 +247,67 @@ const Assets = () => {
                  a.location.toLowerCase().includes(searchQuery.toLowerCase()))
               )
               .map((asset) => (
-              <div key={asset.id} className="border border-gray-100 rounded-xl p-4 hover:border-blue-200 hover:shadow-md transition-all group cursor-pointer bg-gray-50/50 hover:bg-white">
-                <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100 group-hover:scale-110 transition-transform">
+              <div 
+                key={asset.id} 
+                onClick={() => handleViewDetails(asset)}
+                className="border border-gray-100 rounded-xl overflow-hidden hover:border-blue-200 hover:shadow-md transition-all group cursor-pointer bg-gray-50/50 hover:bg-white flex flex-col h-full"
+              >
+                {asset.image ? (
+                  <div className="h-36 bg-cover bg-center shrink-0" style={{ backgroundImage: `url(${asset.image})` }} />
+                ) : (
+                  <div className="h-36 bg-gradient-to-br from-gray-50 to-gray-100/50 flex items-center justify-center border-b border-gray-100 shrink-0">
+                    <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-150 group-hover:scale-110 transition-transform">
                       {getIcon(asset.category)}
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{asset.name}</h3>
-                      <p className="text-xs text-gray-500 font-mono mt-0.5">{asset.id}</p>
+                  </div>
+                )}
+                <div className="p-4 flex-1 flex flex-col">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex items-center space-x-3">
+                      {asset.image && (
+                        <div className="bg-white p-1.5 rounded-lg shadow-sm border border-gray-100">
+                          {getIcon(asset.category)}
+                        </div>
+                      )}
+                      <div>
+                        <h3 className="font-semibold text-gray-900 group-hover:text-blue-900 transition-colors">{asset.name}</h3>
+                        <p className="text-xs text-gray-500 font-mono mt-0.5">{asset.id}</p>
+                      </div>
                     </div>
+                    {isAdmin && (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAsset(asset.id);
+                        }}
+                        className="text-red-600 hover:text-red-700 text-xs font-semibold p-1.5 hover:bg-red-50 rounded-lg transition-colors z-10"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </div>
-                  {isAdmin && (
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteAsset(asset.id);
-                      }}
-                      className="text-red-600 hover:text-red-700 text-xs font-semibold p-1 hover:bg-red-50 rounded transition-colors"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-y-2 mt-4 text-sm">
-                  <div>
-                    <span className="text-gray-500 text-xs block mb-0.5">Location</span>
-                    <span className="font-medium text-gray-800">{asset.location}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 text-xs block mb-0.5">Category</span>
-                    <span className="font-medium text-gray-800">{asset.category}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 text-xs block mb-0.5">Purchase Date</span>
-                    <span className="font-medium text-gray-800">{asset.purchaseDate}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500 text-xs block mb-0.5">Status</span>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      asset.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                    }`}>
-                      {asset.status}
-                    </span>
+                  
+                  <div className="grid grid-cols-2 gap-y-2 mt-auto pt-3 border-t border-gray-50 text-sm">
+                    <div>
+                      <span className="text-gray-500 text-xs block mb-0.5">Location</span>
+                      <span className="font-medium text-gray-800">{asset.location}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs block mb-0.5">Category</span>
+                      <span className="font-medium text-gray-800">{asset.category}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs block mb-0.5">Purchase Date</span>
+                      <span className="font-medium text-gray-800">{asset.purchaseDate}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 text-xs block mb-0.5">Status</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        asset.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                        {asset.status}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -286,11 +355,94 @@ const Assets = () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Asset Image File</label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleAddAssetFileChange} 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none text-sm bg-white" 
+            />
+            {uploading && <p className="text-xs text-[#1E3A8A] animate-pulse mt-1">Uploading image...</p>}
+            {newAsset.image && (
+              <p className="text-xs text-green-600 mt-1">✓ Image uploaded successfully</p>
+            )}
+          </div>
+
           <div className="pt-4 flex justify-end space-x-3 border-t border-gray-100 mt-6">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-[#1E3A8A] text-white rounded-lg font-medium hover:bg-[#1E40AF] transition-colors">Add Asset</button>
           </div>
         </form>
+      </Modal>
+
+      {/* View Details Modal */}
+      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Asset Details">
+        {selectedAsset && (
+          <div className="space-y-6">
+            {selectedAsset.image && (
+              <div 
+                className="w-full h-48 rounded-xl overflow-hidden shadow-md border border-gray-100 bg-cover bg-center" 
+                style={{ backgroundImage: `url(${selectedAsset.image})` }} 
+              />
+            )}
+            
+            <div className="flex items-center space-x-4 mb-4">
+              <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100">
+                {getIcon(selectedAsset.category)}
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">{selectedAsset.name}</h3>
+                <p className="text-sm text-gray-500 font-mono">{selectedAsset.id}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100 text-sm">
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Location</p>
+                <p className="font-medium text-gray-900">{selectedAsset.location}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Category</p>
+                <p className="font-medium text-gray-900">{selectedAsset.category}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Purchase Date</p>
+                <p className="font-medium text-gray-900">{selectedAsset.purchaseDate}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Current Status</p>
+                <span className={`inline-flex px-2 py-0.5 mt-1 text-xs font-medium rounded-full ${
+                  selectedAsset.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                }`}>
+                  {selectedAsset.status}
+                </span>
+              </div>
+            </div>
+
+            {isAdmin && (
+              <div className="space-y-2 mt-4 pt-4 border-t border-gray-150">
+                <label className="block text-sm font-semibold text-gray-700">Upload Asset Image File</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleEditAssetFileChange} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none text-sm bg-white" 
+                />
+                {uploading && <p className="text-xs text-[#1E3A8A] animate-pulse mt-1">Uploading image...</p>}
+              </div>
+            )}
+
+            <div className="pt-4 flex justify-end border-t border-gray-100">
+              <button 
+                onClick={() => setIsViewModalOpen(false)} 
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -54,7 +54,7 @@ const Dashboard = () => {
   };
 
   const [stats, setStats] = useState([
-    { title: 'Available Classrooms', value: '--', change: 'Calculating...', trend: 'neutral', icon: DoorOpen, color: 'from-blue-500 to-indigo-600', path: '/facilities' },
+    { title: 'Available Facilities', value: '--', change: 'Calculating...', trend: 'neutral', icon: DoorOpen, color: 'from-blue-500 to-indigo-600', path: '/facilities' },
     { title: 'Active Maintenance', value: '--', change: 'Calculating...', trend: 'neutral', icon: Wrench, color: 'from-amber-500 to-orange-600', path: '/maintenance' },
     { title: 'Total Assets', value: '--', change: 'Calculating...', trend: 'neutral', icon: Users, color: 'from-emerald-500 to-teal-600', path: '/assets' },
     { title: 'Critical Issues', value: '--', change: 'Calculating...', trend: 'neutral', icon: AlertTriangle, color: 'from-rose-500 to-red-600', path: '/maintenance' },
@@ -82,11 +82,10 @@ const Dashboard = () => {
         api.get<any[]>('/bookings')
       ]);
 
-      // 1. Available Classrooms Calculation
-      const classrooms = facilities.filter(f => f.type === 'Classroom');
-      const availableClassrooms = classrooms.filter(f => f.status === 'Available').length;
-      const totalClassrooms = classrooms.length;
-      const classroomRatio = totalClassrooms > 0 ? Math.round((availableClassrooms / totalClassrooms) * 100) : 0;
+      // 1. Available Facilities Calculation
+      const availableFacilities = facilities.filter(f => f.status === 'Available').length;
+      const totalFacilities = facilities.length;
+      const facilityRatio = totalFacilities > 0 ? Math.round((availableFacilities / totalFacilities) * 100) : 0;
 
       // 2. Active Maintenance Calculation
       const activeMaintenance = tickets.filter(t => t.status !== 'Completed' && t.status !== 'Resolved').length;
@@ -104,10 +103,10 @@ const Dashboard = () => {
 
       setStats([
         { 
-          title: 'Available Classrooms', 
-          value: `${availableClassrooms} / ${totalClassrooms}`, 
-          change: `${classroomRatio}% of Rooms Ready`, 
-          trend: classroomRatio >= 80 ? 'up' : classroomRatio >= 50 ? 'neutral' : 'down', 
+          title: 'Available Facilities', 
+          value: `${availableFacilities} / ${totalFacilities}`, 
+          change: `${facilityRatio}% of Rooms Ready`, 
+          trend: facilityRatio >= 80 ? 'up' : facilityRatio >= 50 ? 'neutral' : 'down', 
           icon: DoorOpen, 
           color: 'from-blue-500 to-indigo-600',
           path: '/facilities'

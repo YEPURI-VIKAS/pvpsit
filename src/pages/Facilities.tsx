@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Plus, MonitorPlay, Wind, Projector, CheckCircle2, AlertCircle } from 'lucide-react';
 import Modal from '../components/ui/Modal';
-import { api } from '../lib/api';
+import { api, uploadImage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 type Facility = {
@@ -11,6 +11,7 @@ type Facility = {
   capacity: number;
   status: string;
   equipment: string[];
+  image?: string;
 };
 
 const Facilities = () => {
@@ -44,13 +45,15 @@ const Facilities = () => {
     type: 'Classroom',
     capacity: 30,
     status: 'Available',
-    equipment: ''
+    equipment: '',
+    image: ''
   });
 
   // States for viewing and booking
   const [selectedFacility, setSelectedFacility] = useState<Facility | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
   
   // Booking form state
   const [bookingEvent, setBookingEvent] = useState('');
@@ -58,6 +61,44 @@ const Facilities = () => {
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAddFacilityFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const url = await uploadImage(file, 'facility-photos');
+      setNewFacility(prev => ({ ...prev, image: url }));
+    } catch (err: any) {
+      console.error(err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleEditFacilityFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploading(true);
+      const url = await uploadImage(file, 'facility-photos');
+      if (selectedFacility) {
+        const updated = await api.patch<Facility>(`/facilities/${selectedFacility.id}`, {
+          ...selectedFacility,
+          image: url
+        });
+        setFacilities(prev => prev.map(f => f.id === selectedFacility.id ? updated : f));
+        setSelectedFacility(updated);
+        alert('Facility photo updated successfully!');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert('Upload failed: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleAddFacility = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,19 +110,22 @@ const Facilities = () => {
       type: newFacility.type,
       capacity: newFacility.capacity,
       status: newFacility.status,
-      equipment: equipmentArray.length > 0 ? equipmentArray : ['None']
+      equipment: equipmentArray.length > 0 ? equipmentArray : ['None'],
+      image: newFacility.image
     };
 
     try {
       const saved = await api.post<Facility>('/facilities', facilityToInsert);
       setFacilities([...facilities, saved]);
       setIsAddModalOpen(false);
-      setNewFacility({ id: '', name: '', type: 'Classroom', capacity: 30, status: 'Available', equipment: '' });
+      setNewFacility({ id: '', name: '', type: 'Classroom', capacity: 30, status: 'Available', equipment: '', image: '' });
     } catch (error) {
       console.error('Error adding facility:', error);
       alert('Failed to add facility.');
     }
   };
+
+
 
   const handleDeleteFacility = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this facility?")) return;
@@ -230,11 +274,26 @@ const Facilities = () => {
             )
             .map((facility) => (
             <div key={facility.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover-lift group flex flex-col h-full">
-              <div className={`h-24 ${facility.type === 'Computer Lab' ? 'bg-blue-600' : facility.type === 'Classroom' ? 'bg-indigo-600' : facility.type === 'Seminar Hall' ? 'bg-purple-600' : 'bg-teal-600'} relative p-6 flex items-end shrink-0`}>
-                 <div className="absolute top-4 right-4 bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-medium">
-                   {facility.type}
-                 </div>
-                 <h3 className="text-2xl font-bold text-white z-10">{facility.name}</h3>
+              <div 
+                className="h-32 relative p-6 flex items-end shrink-0 bg-cover bg-center overflow-hidden"
+                style={{ 
+                  backgroundImage: facility.image 
+                    ? `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.7)), url(${facility.image})` 
+                    : undefined 
+                }}
+              >
+                {!facility.image && (
+                  <div className={`absolute inset-0 bg-gradient-to-r ${
+                    facility.type === 'Computer Lab' ? 'from-blue-600 to-indigo-700' : 
+                    facility.type === 'Classroom' ? 'from-indigo-600 to-purple-700' : 
+                    facility.type === 'Seminar Hall' ? 'from-purple-600 to-pink-700' : 
+                    'from-teal-600 to-emerald-700'
+                  }`} />
+                )}
+                <div className="absolute top-4 right-4 bg-black/40 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-medium border border-white/10">
+                  {facility.type}
+                </div>
+                <h3 className="text-2xl font-bold text-white z-10 drop-shadow-md">{facility.name}</h3>
               </div>
               
               <div className="p-6 flex-1 flex flex-col">
@@ -338,6 +397,20 @@ const Facilities = () => {
             <input type="text" value={newFacility.equipment} onChange={e => setNewFacility({...newFacility, equipment: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" placeholder="e.g. AC, Projector, Whiteboard" />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Facility Image File</label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleAddFacilityFileChange} 
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none text-sm bg-white" 
+            />
+            {uploading && <p className="text-xs text-[#1E3A8A] animate-pulse mt-1">Uploading image...</p>}
+            {newFacility.image && (
+              <p className="text-xs text-green-600 mt-1">✓ Image uploaded successfully</p>
+            )}
+          </div>
+
           <div className="pt-4 flex justify-end space-x-3 border-t border-gray-100 mt-6">
             <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Cancel</button>
             <button type="submit" className="px-4 py-2 bg-[#1E3A8A] text-white rounded-lg font-medium hover:bg-[#1E40AF] transition-colors">Add Facility</button>
@@ -349,8 +422,15 @@ const Facilities = () => {
       <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title="Facility Details">
         {selectedFacility && (
           <div className="space-y-6">
+            {selectedFacility.image && (
+              <div 
+                className="w-full h-48 rounded-xl overflow-hidden shadow-md border border-gray-100 bg-cover bg-center" 
+                style={{ backgroundImage: `url(${selectedFacility.image})` }} 
+              />
+            )}
+            
             <div className="flex items-center space-x-4 mb-4">
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl ${selectedFacility.type === 'Computer Lab' ? 'bg-blue-600' : selectedFacility.type === 'Classroom' ? 'bg-indigo-600' : selectedFacility.type === 'Seminar Hall' ? 'bg-purple-600' : 'bg-teal-600'}`}>
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shrink-0 ${selectedFacility.type === 'Computer Lab' ? 'bg-blue-600' : selectedFacility.type === 'Classroom' ? 'bg-indigo-600' : selectedFacility.type === 'Seminar Hall' ? 'bg-purple-600' : 'bg-teal-600'}`}>
                 {selectedFacility.id}
               </div>
               <div>
@@ -387,6 +467,19 @@ const Facilities = () => {
                 ))}
               </ul>
             </div>
+
+            {isAdmin && (
+              <div className="space-y-2 mt-4 pt-4 border-t border-gray-150">
+                <label className="block text-sm font-semibold text-gray-700">Upload Facility Image File</label>
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleEditFacilityFileChange} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none text-sm bg-white" 
+                />
+                {uploading && <p className="text-xs text-[#1E3A8A] animate-pulse mt-1">Uploading image...</p>}
+              </div>
+            )}
 
             <div className="pt-4 flex justify-end border-t border-gray-100">
               <button 

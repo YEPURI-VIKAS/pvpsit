@@ -13,6 +13,8 @@ type Booking = {
   organizer: string;
   organizerEmail?: string;
   status: string;
+  facilityId?: string | null;
+  assetId?: string | null;
 };
 
 const Bookings = () => {
@@ -23,6 +25,11 @@ const Bookings = () => {
   const locationState = useLocation();
   const [activeTab, setActiveTab] = useState<'schedule' | 'pending'>('schedule');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [facilities, setFacilities] = useState<any[]>([]);
+  const [assets, setAssets] = useState<any[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   useEffect(() => {
     if (locationState.state && (locationState.state as any).tab) {
@@ -39,6 +46,32 @@ const Bookings = () => {
       setSchedule(prev =>
         prev.map(item => (item.id === id ? { ...item, status } : item))
       );
+
+      // Automatically update the corresponding facility status to 'In Use' if Confirmed, or 'Available' if Rejected/Cancelled
+      if (bookingItem) {
+        let facId = bookingItem.facilityId;
+        if (!facId && bookingItem.location) {
+          const matched = facilities.find(f => 
+            f.name.toLowerCase() === bookingItem.location.toLowerCase() ||
+            f.id.toLowerCase() === bookingItem.location.toLowerCase()
+          );
+          if (matched) {
+            facId = matched.id;
+          }
+        }
+
+        if (facId) {
+          const facilityStatus = status === 'Confirmed' ? 'In Use' : 'Available';
+          try {
+            await api.patch(`/facilities/${facId}/status`, { status: facilityStatus });
+            setFacilities(prev =>
+              prev.map(fac => fac.id === facId ? { ...fac, status: facilityStatus } : fac)
+            );
+          } catch (facErr) {
+            console.error('Error updating facility status:', facErr);
+          }
+        }
+      }
 
       // Write notification directly to the student's notification key (role-aware)
       const ownerEmail = localStorage.getItem(`pvpsit_booking_owner_${id}`);
@@ -71,15 +104,22 @@ const Bookings = () => {
   };
 
   useEffect(() => {
-    fetchBookings();
+    fetchBookingsAndResources();
   }, []);
 
-  const fetchBookings = async () => {
+  const fetchBookingsAndResources = async () => {
     try {
-      const data = await api.get<Booking[]>('/bookings');
-      setSchedule(data);
+      setLoading(true);
+      const [bookingsData, facilitiesData, assetsData] = await Promise.all([
+        api.get<Booking[]>('/bookings'),
+        api.get<any[]>('/facilities'),
+        api.get<any[]>('/assets')
+      ]);
+      setSchedule(bookingsData);
+      setFacilities(facilitiesData);
+      setAssets(assetsData);
     } catch (error) {
-      console.error('Error fetching bookings:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -137,6 +177,8 @@ const Bookings = () => {
     date: getYYYYMMDD(new Date()),
     startTime: '',
     endTime: '',
+    resourceType: 'Facility', // 'Facility' or 'Asset'
+    resourceId: '',
     location: '',
     organizer: ''
   });
@@ -157,11 +199,22 @@ const Bookings = () => {
 
     const timeString = `${newBooking.date} at ${formatTime(newBooking.startTime)} - ${formatTime(newBooking.endTime)}`;
     
+    let resolvedLocation = '';
+    if (newBooking.resourceType === 'Facility') {
+      const fac = facilities.find(f => f.id === newBooking.resourceId);
+      resolvedLocation = fac ? fac.name : newBooking.resourceId;
+    } else {
+      const ast = assets.find(a => a.id === newBooking.resourceId);
+      resolvedLocation = ast ? ast.name : newBooking.resourceId;
+    }
+
     const bookingToInsert = {
       id: `BKG-${Math.floor(Math.random() * 10000)}`,
       title: newBooking.title,
       time: timeString,
-      location: newBooking.location,
+      location: resolvedLocation,
+      facilityId: newBooking.resourceType === 'Facility' ? newBooking.resourceId : null,
+      assetId: newBooking.resourceType === 'Asset' ? newBooking.resourceId : null,
       organizer: newBooking.organizer || user?.user_metadata?.full_name || 'Staff Member',
       organizerEmail: user?.email || '',
       status: 'Pending'
@@ -199,6 +252,8 @@ const Bookings = () => {
         date: getYYYYMMDD(currentDate),
         startTime: '', 
         endTime: '', 
+        resourceType: 'Facility',
+        resourceId: '',
         location: '', 
         organizer: '' 
       });
@@ -329,7 +384,11 @@ const Bookings = () => {
                       const startTime = timeParts[0];
                       const endTime = timeParts[1];
                       return (
-                        <div key={item.id} className="flex border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                        <div 
+                          key={item.id} 
+                          onClick={() => { setSelectedBooking(item); setIsDetailModalOpen(true); }}
+                          className="flex border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                        >
                           <div className="bg-blue-50 w-32 p-4 flex flex-col justify-center items-center text-center border-r border-gray-100 shrink-0">
                             <Clock size={20} className="text-[#1E3A8A] mb-1" />
                             <span className="text-xs font-bold text-gray-900">{startTime}</span>
@@ -354,13 +413,13 @@ const Bookings = () => {
                                 {isAdmin && item.status === 'Pending' && (
                                   <div className="flex space-x-1 shrink-0">
                                     <button 
-                                      onClick={() => handleUpdateStatus(item.id, 'Confirmed')}
+                                      onClick={(e) => { e.stopPropagation(); handleUpdateStatus(item.id, 'Confirmed'); }}
                                       className="px-2 py-1 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded transition-colors"
                                     >
                                       Approve
                                     </button>
                                     <button 
-                                      onClick={() => handleUpdateStatus(item.id, 'Rejected')}
+                                      onClick={(e) => { e.stopPropagation(); handleUpdateStatus(item.id, 'Rejected'); }}
                                       className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded transition-colors"
                                     >
                                       Reject
@@ -409,7 +468,11 @@ const Bookings = () => {
                   return pendingBookings.map((item) => {
                     const parsed = getBookingDateAndDisplayTime(item.time);
                     return (
-                      <div key={item.id} className="flex border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow">
+                      <div 
+                        key={item.id} 
+                        onClick={() => { setSelectedBooking(item); setIsDetailModalOpen(true); }}
+                        className="flex border border-gray-100 rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+                      >
                         <div className="bg-amber-50/50 w-32 p-4 flex flex-col justify-center items-center text-center border-r border-gray-100 shrink-0">
                           <Clock size={20} className="text-amber-600 mb-1" />
                           <span className="text-xs font-bold text-gray-900 leading-snug">{parsed.displayTime}</span>
@@ -438,13 +501,13 @@ const Bookings = () => {
                             {isAdmin && (
                               <div className="flex space-x-1">
                                 <button 
-                                  onClick={() => handleUpdateStatus(item.id, 'Confirmed')}
+                                  onClick={(e) => { e.stopPropagation(); handleUpdateStatus(item.id, 'Confirmed'); }}
                                   className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm"
                                 >
                                   Approve
                                 </button>
                                 <button 
-                                  onClick={() => handleUpdateStatus(item.id, 'Rejected')}
+                                  onClick={(e) => { e.stopPropagation(); handleUpdateStatus(item.id, 'Rejected'); }}
                                   className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-lg transition-colors shadow-sm"
                                 >
                                   Reject
@@ -487,7 +550,16 @@ const Bookings = () => {
             <p className="text-blue-200 text-sm mb-4 relative z-10">Main Auditorium is available tomorrow from 2 PM to 5 PM.</p>
             <button 
               onClick={() => {
-                setNewBooking({...newBooking, location: 'Main Auditorium', startTime: '14:00', endTime: '17:00'});
+                setNewBooking({
+                  title: 'Event in Main Auditorium',
+                  date: getYYYYMMDD(new Date(Date.now() + 24 * 60 * 60 * 1000)), // tomorrow
+                  startTime: '14:00',
+                  endTime: '17:00',
+                  resourceType: 'Facility',
+                  resourceId: 'FAC-001',
+                  location: 'Main Auditorium',
+                  organizer: ''
+                });
                 setIsSubmitting(false);
                 setIsModalOpen(true);
               }}
@@ -503,7 +575,7 @@ const Bookings = () => {
         <form onSubmit={handleAddBooking} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Event Title</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Event / Booking Title</label>
               <input required type="text" value={newBooking.title} onChange={e => setNewBooking({...newBooking, title: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" placeholder="e.g. AI/ML Guest Lecture" />
             </div>
           </div>
@@ -517,40 +589,229 @@ const Bookings = () => {
           
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location / Venue</label>
-              <select value={newBooking.location} onChange={e => setNewBooking({...newBooking, location: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] outline-none">
-                <option value="">Select a venue...</option>
-                <option>Main Auditorium</option>
-                <option>Seminar Hall 1</option>
-                <option>CSE Lab 1</option>
-                <option>Lecture Hall 2</option>
-                <option>Open Air Theatre</option>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Resource Type</label>
+              <select 
+                value={newBooking.resourceType} 
+                onChange={e => setNewBooking({...newBooking, resourceType: e.target.value, resourceId: ''})} 
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] outline-none"
+              >
+                <option value="Facility">Facility (Venue)</option>
+                <option value="Asset">Asset (Equipment)</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Organizer / Dept</label>
-              <input required type="text" value={newBooking.organizer} onChange={e => setNewBooking({...newBooking, organizer: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" placeholder="e.g. CSE Dept" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Item</label>
+              {newBooking.resourceType === 'Facility' ? (
+                <select 
+                  required
+                  value={newBooking.resourceId} 
+                  onChange={e => setNewBooking({...newBooking, resourceId: e.target.value})} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] outline-none"
+                >
+                  <option value="">Select a facility...</option>
+                  {facilities.map(f => (
+                    <option key={f.id} value={f.id}>{f.name} (Room {f.id})</option>
+                  ))}
+                </select>
+              ) : (
+                <select 
+                  required
+                  value={newBooking.resourceId} 
+                  onChange={e => setNewBooking({...newBooking, resourceId: e.target.value})} 
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] outline-none"
+                >
+                  <option value="">Select an asset...</option>
+                  {assets.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.id}) - {a.location}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-              <input required type="time" value={newBooking.startTime} onChange={e => setNewBooking({...newBooking, startTime: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Organizer / Dept</label>
+              <input required type="text" value={newBooking.organizer} onChange={e => setNewBooking({...newBooking, organizer: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" placeholder="e.g. CSE Dept" />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-              <input required type="time" value={newBooking.endTime} onChange={e => setNewBooking({...newBooking, endTime: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                <input required type="time" value={newBooking.startTime} onChange={e => setNewBooking({...newBooking, startTime: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                <input required type="time" value={newBooking.endTime} onChange={e => setNewBooking({...newBooking, endTime: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+              </div>
             </div>
           </div>
 
           <div className="pt-4 flex justify-end space-x-3 border-t border-gray-100 mt-6">
             <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">Cancel</button>
-            <button type="submit" disabled={isSubmitting || !newBooking.location} className="px-4 py-2 bg-[#1E3A8A] text-white rounded-lg font-medium hover:bg-[#1E40AF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <button type="submit" disabled={isSubmitting || !newBooking.resourceId} className="px-4 py-2 bg-[#1E3A8A] text-white rounded-lg font-medium hover:bg-[#1E40AF] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
               {isSubmitting ? 'Requesting...' : 'Request Booking'}
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Booking Details Modal */}
+      <Modal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} title="Booking & Resource Details">
+        {selectedBooking && (() => {
+          let matchedFacility = selectedBooking.facilityId 
+            ? facilities.find(f => f.id === selectedBooking.facilityId)
+            : null;
+          let matchedAsset = selectedBooking.assetId 
+            ? assets.find(a => a.id === selectedBooking.assetId)
+            : null;
+
+          // Fallback matching by location text
+          if (!matchedFacility && !matchedAsset && selectedBooking.location) {
+            const searchStr = selectedBooking.location.toLowerCase();
+            matchedFacility = facilities.find(f => 
+              f.name.toLowerCase() === searchStr || 
+              f.id.toLowerCase() === searchStr
+            );
+            if (!matchedFacility) {
+              matchedAsset = assets.find(a => 
+                a.name.toLowerCase() === searchStr || 
+                a.id.toLowerCase() === searchStr
+              );
+            }
+          }
+
+          // If a facility is matched, find any assets located in that facility
+          const assetsInFacility = matchedFacility 
+            ? assets.filter(a => 
+                a.location && (
+                  a.location.toLowerCase() === matchedFacility.name.toLowerCase() || 
+                  a.location.toLowerCase() === matchedFacility.id.toLowerCase()
+                )
+              )
+            : [];
+
+          return (
+            <div className="space-y-6">
+              <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 space-y-2">
+                <h4 className="text-xs uppercase font-extrabold tracking-wider text-blue-850">Booking Information</h4>
+                <h3 className="text-xl font-bold text-gray-900">{selectedBooking.title}</h3>
+                <p className="text-sm text-gray-600"><strong>Time:</strong> {selectedBooking.time}</p>
+                <p className="text-sm text-gray-600"><strong>Organizer:</strong> {selectedBooking.organizer} ({selectedBooking.organizerEmail || 'No email'})</p>
+                <div className="pt-1">
+                  <span className={`inline-block px-2.5 py-0.5 rounded text-xs font-semibold ${
+                    selectedBooking.status === 'Confirmed' ? 'bg-green-100 text-green-700' :
+                    selectedBooking.status === 'Rejected' ? 'bg-red-100 text-red-700' :
+                    'bg-amber-100 text-amber-700'
+                  }`}>
+                    {selectedBooking.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Facility Details */}
+              {matchedFacility && (
+                <div className="border border-gray-150 rounded-xl overflow-hidden shadow-sm">
+                  {matchedFacility.image && (
+                    <div className="w-full h-40 bg-cover bg-center" style={{ backgroundImage: `url(${matchedFacility.image})` }} />
+                  )}
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <span className="text-[10px] bg-indigo-100 text-indigo-700 font-bold px-2 py-0.5 rounded-full uppercase">{matchedFacility.type}</span>
+                      <h4 className="text-lg font-bold text-gray-900 mt-1">Facility: {matchedFacility.name} (Room {matchedFacility.id})</h4>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-gray-50 p-2.5 rounded-lg">
+                      <div>
+                        <span className="text-gray-500 block">Capacity</span>
+                        <span className="font-semibold text-gray-900">{matchedFacility.capacity} Students</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Status</span>
+                        <span className="font-semibold text-gray-900">{matchedFacility.status}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-xs text-gray-500 font-semibold block mb-1">Equipment</span>
+                      <div className="flex flex-wrap gap-1">
+                        {matchedFacility.equipment?.map((eq: string, i: number) => (
+                          <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">{eq}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Assets in this facility */}
+                    {assetsInFacility.length > 0 && (
+                      <div className="pt-2 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 font-semibold block mb-2">Assets in this Facility</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {assetsInFacility.map((ast: any) => (
+                            <div key={ast.id} className="flex items-center space-x-2 p-1.5 border border-gray-100 rounded-lg bg-gray-50/50">
+                              {ast.image ? (
+                                <img src={ast.image} className="w-8 h-8 rounded object-cover" />
+                              ) : (
+                                <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-xs">📦</div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-gray-800 truncate">{ast.name}</p>
+                                <p className="text-[10px] text-gray-500 truncate">{ast.category} • {ast.status}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Asset Details */}
+              {matchedAsset && (
+                <div className="border border-gray-150 rounded-xl overflow-hidden shadow-sm">
+                  {matchedAsset.image && (
+                    <div className="w-full h-40 bg-cover bg-center" style={{ backgroundImage: `url(${matchedAsset.image})` }} />
+                  )}
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <span className="text-[10px] bg-amber-100 text-amber-700 font-bold px-2 py-0.5 rounded-full uppercase">{matchedAsset.category}</span>
+                      <h4 className="text-lg font-bold text-gray-900 mt-1">Asset: {matchedAsset.name} ({matchedAsset.id})</h4>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-xs bg-gray-50 p-2.5 rounded-lg">
+                      <div>
+                        <span className="text-gray-500 block">Location</span>
+                        <span className="font-semibold text-gray-900">{matchedAsset.location}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Status</span>
+                        <span className="font-semibold text-gray-900">{matchedAsset.status}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Purchase Date</span>
+                        <span className="font-semibold text-gray-900">{matchedAsset.purchaseDate}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {!matchedFacility && !matchedAsset && (
+                <div className="p-4 bg-gray-50 rounded-lg text-center text-sm text-gray-500">
+                  No associated facility or asset details found for "{selectedBooking.location}".
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-gray-100 flex justify-end">
+                <button 
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </Modal>
     </div>
   );

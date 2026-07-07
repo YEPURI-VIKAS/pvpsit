@@ -42,6 +42,8 @@ create table if not exists public.bookings (
   organizer text,
   organizer_email text,
   status text default 'Pending',
+  facility_id text,
+  asset_id text,
   created_at timestamptz default now()
 );
 alter table public.bookings enable row level security;
@@ -58,6 +60,7 @@ create table if not exists public.assets (
   location text,
   status text default 'Active',
   purchase_date text,
+  image text default '',
   created_at timestamptz default now()
 );
 alter table public.assets enable row level security;
@@ -94,10 +97,22 @@ alter publication supabase_realtime add table public.facilities;
 -- ============================================================
 -- 7. SEED DATA (optional — sample facilities)
 -- ============================================================
-insert into public.facilities (id, name, type, capacity, status, equipment) values
-  ('FAC-001', 'Main Auditorium', 'Auditorium', 500, 'Available', ARRAY['Projector', 'Microphone', 'AC', 'Stage Lighting']),
-  ('FAC-002', 'CSE Lab 1', 'Computer Lab', 60, 'Available', ARRAY['30 Computers', 'Projector', 'AC', 'High-Speed Internet']),
-  ('FAC-003', 'Seminar Hall A', 'Seminar Hall', 120, 'Available', ARRAY['Projector', 'Whiteboard', 'AC', 'Microphone']),
-  ('FAC-004', 'Classroom 101', 'Classroom', 60, 'Available', ARRAY['Whiteboard', 'Projector', 'Ceiling Fan']),
-  ('FAC-005', 'Sports Hall', 'Sports', 200, 'Maintenance', ARRAY['Basketball Court', 'Changing Rooms', 'Scoreboard'])
+insert into public.facilities (id, name, type, capacity, status, image, equipment) values
+  ('FAC-001', 'Main Auditorium', 'Auditorium', 500, 'Available', 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80', ARRAY['Projector', 'Microphone', 'AC', 'Stage Lighting']),
+  ('FAC-002', 'CSE Lab 1', 'Computer Lab', 60, 'Available', 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80', ARRAY['30 Computers', 'Projector', 'AC', 'High-Speed Internet']),
+  ('FAC-003', 'Seminar Hall A', 'Seminar Hall', 120, 'Available', 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80', ARRAY['Projector', 'Whiteboard', 'AC', 'Microphone']),
+  ('FAC-004', 'Classroom 101', 'Classroom', 60, 'Available', 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80', ARRAY['Whiteboard', 'Projector', 'Ceiling Fan']),
+  ('FAC-005', 'Sports Hall', 'Sports', 200, 'Maintenance', 'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80', ARRAY['Basketball Court', 'Changing Rooms', 'Scoreboard'])
 on conflict (id) do nothing;
+
+-- ============================================================
+-- 8. STORAGE SETUP (for local file uploads)
+-- ============================================================
+insert into storage.buckets (id, name, public)
+values ('facility-photos', 'facility-photos', true)
+on conflict (id) do nothing;
+
+create policy "Public Read Access" on storage.objects for select using (bucket_id = 'facility-photos');
+create policy "Admin Upload Access" on storage.objects for insert with check (bucket_id = 'facility-photos' and auth.role() = 'authenticated');
+create policy "Admin Update Access" on storage.objects for update using (bucket_id = 'facility-photos' and auth.role() = 'authenticated');
+create policy "Admin Delete Access" on storage.objects for delete using (bucket_id = 'facility-photos' and auth.role() = 'authenticated');

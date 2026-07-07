@@ -64,11 +64,11 @@ class MockQueryBuilder {
     // Seed default facilities
     if (this.table === 'facilities') {
       const defaultFacilities = [
-        { id: 'FAC-001', name: 'Main Auditorium', type: 'Auditorium', capacity: 500, status: 'Available', equipment: ['Projector', 'Microphone', 'AC', 'Stage Lighting'] },
-        { id: 'FAC-002', name: 'CSE Lab 1', type: 'Computer Lab', capacity: 60, status: 'Available', equipment: ['30 Computers', 'Projector', 'AC', 'High-Speed Internet'] },
-        { id: 'FAC-003', name: 'Seminar Hall A', type: 'Seminar Hall', capacity: 120, status: 'Available', equipment: ['Projector', 'Whiteboard', 'AC', 'Microphone'] },
-        { id: 'FAC-004', name: 'Classroom 101', type: 'Classroom', capacity: 60, status: 'Available', equipment: ['Whiteboard', 'Projector', 'Ceiling Fan'] },
-        { id: 'FAC-005', name: 'Sports Hall', type: 'Sports', capacity: 200, status: 'Maintenance', equipment: ['Basketball Court', 'Changing Rooms', 'Scoreboard'] }
+        { id: 'FAC-001', name: 'Main Auditorium', type: 'Auditorium', capacity: 500, status: 'Available', equipment: ['Projector', 'Microphone', 'AC', 'Stage Lighting'], image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80' },
+        { id: 'FAC-002', name: 'CSE Lab 1', type: 'Computer Lab', capacity: 60, status: 'Available', equipment: ['30 Computers', 'Projector', 'AC', 'High-Speed Internet'], image: 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=800&q=80' },
+        { id: 'FAC-003', name: 'Seminar Hall A', type: 'Seminar Hall', capacity: 120, status: 'Available', equipment: ['Projector', 'Whiteboard', 'AC', 'Microphone'], image: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=800&q=80' },
+        { id: 'FAC-004', name: 'Classroom 101', type: 'Classroom', capacity: 60, status: 'Available', equipment: ['Whiteboard', 'Projector', 'Ceiling Fan'], image: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=800&q=80' },
+        { id: 'FAC-005', name: 'Sports Hall', type: 'Sports', capacity: 200, status: 'Maintenance', equipment: ['Basketball Court', 'Changing Rooms', 'Scoreboard'], image: 'https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=800&q=80' }
       ];
       localStorage.setItem(key, JSON.stringify(defaultFacilities));
       return defaultFacilities;
@@ -100,9 +100,9 @@ class MockQueryBuilder {
     // Seed default assets
     if (this.table === 'assets') {
       const defaultAssets = [
-        { id: 'AST-3001', name: 'Dell OptiPlex Desktop', category: 'Computers', location: 'CSE Lab 1', status: 'Active', purchase_date: '2024-06-15' },
-        { id: 'AST-3002', name: 'Epson Projector EB-E01', category: 'Projector', location: 'Main Auditorium', status: 'Active', purchase_date: '2023-11-20' },
-        { id: 'AST-3003', name: 'Voltas 2 Ton Split AC', category: 'AC', location: 'CSE Lab 1', status: 'In Repair', purchase_date: '2025-01-10' }
+        { id: 'AST-3001', name: 'Dell OptiPlex Desktop', category: 'Computer', location: 'CSE Lab 1', status: 'Active', purchase_date: '2024-06-15', image: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=800&q=80' },
+        { id: 'AST-3002', name: 'Epson Projector EB-E01', category: 'Electronics', location: 'Main Auditorium', status: 'Active', purchase_date: '2023-11-20', image: 'https://images.unsplash.com/photo-1535016120720-40c646be5580?auto=format&fit=crop&w=800&q=80' },
+        { id: 'AST-3003', name: 'Voltas 2 Ton Split AC', category: 'Electronics', location: 'CSE Lab 1', status: 'Active', purchase_date: '2025-01-10', image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&w=800&q=80' }
       ];
       localStorage.setItem(key, JSON.stringify(defaultAssets));
       return defaultAssets;
