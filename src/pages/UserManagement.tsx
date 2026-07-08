@@ -234,15 +234,15 @@ const UserManagement = () => {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full whitespace-nowrap min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-100">
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Name</th>
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Email</th>
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Role</th>
-                  <th className="text-left px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Last Login</th>
-                  <th className="text-right px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="text-left px-4 md:px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Name</th>
+                  <th className="text-left px-4 md:px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Email</th>
+                  <th className="text-left px-4 md:px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Role</th>
+                  <th className="text-left px-4 md:px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Last Login</th>
+                  <th className="text-right px-4 md:px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -257,16 +257,16 @@ const UserManagement = () => {
                         onClick={() => toggleExpand(u.id)}
                         className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-4 md:px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
                               {u.fullName ? u.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'}
                             </div>
                             <span className="font-semibold text-sm text-gray-900">{u.fullName || 'Unnamed'}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{u.email}</td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 md:px-6 py-4 text-sm text-gray-600">{u.email}</td>
+                        <td className="px-4 md:px-6 py-4">
                           <select
                             value={u.role}
                             onChange={(e) => {
@@ -284,13 +284,13 @@ const UserManagement = () => {
                             ))}
                           </select>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 md:px-6 py-4">
                           <div className="flex items-center gap-1.5 text-xs text-gray-500">
                             <Clock size={12} />
                             <span>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-4 md:px-6 py-4">
                           <div className="flex items-center justify-end gap-2">
                             {!isSelf && (
                               <button
@@ -299,7 +299,7 @@ const UserManagement = () => {
                                   setDeleteModal({ open: true, user: u });
                                 }}
                                 disabled={actionLoading === u.id}
-                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 disabled:opacity-30"
+                                className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 disabled:opacity-30"
                                 title="Delete user"
                               >
                                 <Trash2 size={16} />
@@ -350,6 +350,112 @@ const UserManagement = () => {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Mobile View */}
+        {filteredUsers.length > 0 && !loading && (
+          <div className="md:hidden">
+            <div className="flex flex-col divide-y divide-gray-100">
+              {filteredUsers.map((u) => {
+                const isExpanded = expandedUserId === u.id;
+                const userHistory = getUserLoginHistory(u.id);
+                const isSelf = String(currentUser?.id) === String(u.id);
+
+                return (
+                  <div key={u.id} className="p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
+                          {u.fullName ? u.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-sm text-gray-900 leading-tight">{u.fullName || 'Unnamed'}</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">{u.email}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-1">
+                        {!isSelf && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteModal({ open: true, user: u });
+                            }}
+                            disabled={actionLoading === u.id}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30"
+                            title="Delete user"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => toggleExpand(u.id)}
+                          className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg"
+                        >
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-y-3 text-sm mt-2">
+                      <div className="text-gray-500 text-xs flex items-center">Role</div>
+                      <div className="flex justify-end">
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                          disabled={isSelf || actionLoading === u.id}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border outline-none transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+                            roleBadgeStyles[u.role] || 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}
+                        >
+                          {ROLES.map(r => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="text-gray-500 text-xs flex items-center">Last Login</div>
+                      <div className="flex justify-end items-center gap-1.5 text-xs text-gray-700 font-medium">
+                        <Clock size={12} className="text-gray-400" />
+                        <span>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}</span>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="mt-4 bg-gray-50/80 rounded-xl p-3 border border-gray-100 animate-in slide-in-from-top-2 fade-in duration-200">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Clock size={12} />
+                          Login History
+                        </h4>
+                        {userHistory.length > 0 ? (
+                          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                            {userHistory.slice(0, 10).map((entry) => (
+                              <div key={entry.id} className="flex flex-col bg-white px-3 py-2 rounded-lg border border-gray-100 text-xs shadow-sm">
+                                <div className="flex justify-between mb-1">
+                                  <span className="font-semibold text-[#1E3A8A]">[{entry.action}]</span>
+                                  {entry.ipAddress && (
+                                    <span className="text-gray-400 font-mono">{entry.ipAddress}</span>
+                                  )}
+                                </div>
+                                <span className="text-gray-600">
+                                  {new Date(entry.timestamp).toLocaleString('en-US', {
+                                    month: 'short', day: 'numeric', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400">No login history available.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>

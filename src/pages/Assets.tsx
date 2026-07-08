@@ -122,6 +122,11 @@ const Assets = () => {
     try {
       const saved = await api.post<Asset>('/assets', assetToInsert);
       setAssets([saved, ...assets]);
+      
+      window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+        detail: { title: 'Asset Added', desc: `${assetToInsert.name} has been added to inventory.` }
+      }));
+
       setIsModalOpen(false);
       setNewAsset({ name: '', category: 'Computer', location: '', status: 'Active', purchaseDate: '', image: '' });
     } catch (error) {
@@ -142,6 +147,10 @@ const Assets = () => {
     try {
       await api.delete(`/assets/${id}`);
       setAssets(prev => prev.filter(a => a.id !== id));
+      
+      window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+        detail: { title: 'Asset Deleted', desc: `Asset ${id} has been removed.` }
+      }));
     } catch (error) {
       console.error('Error deleting asset:', error);
       alert('Failed to delete asset.');

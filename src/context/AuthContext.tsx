@@ -8,6 +8,7 @@ export interface AppUser {
   user_metadata: {
     role: string;
     full_name: string;
+    avatar_url?: string;
     role_fetched?: boolean;
   };
 }
@@ -30,6 +31,7 @@ function toAppUser(supabaseUser: any, overrideRole?: string, roleFetched = false
     user_metadata: {
       role: overrideRole ?? supabaseUser.user_metadata?.role ?? 'Student',
       full_name: supabaseUser.user_metadata?.full_name ?? '',
+      avatar_url: supabaseUser.user_metadata?.avatar_url,
       role_fetched: roleFetched
     },
   };

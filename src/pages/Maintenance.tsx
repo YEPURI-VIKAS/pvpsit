@@ -69,19 +69,12 @@ const Maintenance = () => {
 
       // Immediately notify the person who submitted the ticket
       if (user?.email) {
-        const notifKey = `pvpsit_notifications_${user.email}_${user?.user_metadata?.role || 'Student'}`;
-        const existing: any[] = JSON.parse(localStorage.getItem(notifKey) || '[]');
-        const newNotif = {
-          id: Date.now(),
-          title: 'Ticket Submitted',
-          desc: `Your maintenance request for "${ticketToInsert.title}" at ${ticketToInsert.location} has been submitted.`,
-          time: 'Just now',
-          unread: true
-        };
-        const updated = [newNotif, ...existing];
-        localStorage.setItem(notifKey, JSON.stringify(updated));
-        localStorage.setItem('pvpsit_notifications', JSON.stringify(updated));
-        window.dispatchEvent(new Event('pvpsit_notifications_updated'));
+        window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+          detail: {
+            title: 'Ticket Submitted',
+            desc: `Your maintenance request for "${ticketToInsert.title}" at ${ticketToInsert.location} has been submitted.`
+          }
+        }));
       }
 
       setIsModalOpen(false);
@@ -98,6 +91,10 @@ const Maintenance = () => {
     try {
       await api.patch(`/tickets/${id}/status`, { status: newStatus });
       setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));
+      
+      window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+        detail: { title: 'Status Updated', desc: `Ticket ${id} is now ${newStatus}.` }
+      }));
     } catch (error) {
       console.error('Error updating ticket status:', error);
       alert('Failed to update ticket status.');
@@ -109,6 +106,10 @@ const Maintenance = () => {
     try {
       await api.delete(`/tickets/${id}`);
       setTickets(prev => prev.filter(t => t.id !== id));
+      
+      window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+        detail: { title: 'Ticket Deleted', desc: `Maintenance ticket ${id} has been deleted.` }
+      }));
     } catch (error) {
       console.error('Error deleting ticket:', error);
       alert('Failed to delete ticket.');
@@ -127,6 +128,14 @@ const Maintenance = () => {
     link.click();
     document.body.removeChild(link);
   };
+
+  const filteredTickets = tickets.filter(t => 
+    (statusFilter === 'All' || t.status === statusFilter) &&
+    (priorityFilter === 'All' || t.priority === priorityFilter) &&
+    (t.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
+     t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+     t.location.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
     <div className="space-y-6">
@@ -197,44 +206,36 @@ const Maintenance = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="hidden md:block overflow-x-auto w-full">
           {loading ? (
              <div className="flex justify-center items-center py-20">
                <div className="w-8 h-8 border-4 border-[#1E3A8A] border-t-transparent rounded-full animate-spin"></div>
              </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse whitespace-nowrap min-w-[900px]">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-sm border-b border-gray-200">
-                  <th className="px-6 py-4 font-semibold">Ticket ID</th>
-                  <th className="px-6 py-4 font-semibold">Issue</th>
-                  <th className="px-6 py-4 font-semibold">Location</th>
-                  <th className="px-6 py-4 font-semibold">Priority</th>
-                  <th className="px-6 py-4 font-semibold">Status</th>
-                  <th className="px-6 py-4 font-semibold">Assigned To</th>
-                  <th className="px-6 py-4 font-semibold">Date</th>
-                  <th className="px-6 py-4 font-semibold"></th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Ticket ID</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Issue</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Location</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Priority</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Status</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Assigned To</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold">Date</th>
+                  <th className="px-4 md:px-6 py-4 font-semibold"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {tickets
-                  .filter(t => 
-                    (statusFilter === 'All' || t.status === statusFilter) &&
-                    (priorityFilter === 'All' || t.priority === priorityFilter) &&
-                    (t.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                     t.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                     t.location.toLowerCase().includes(searchQuery.toLowerCase()))
-                  )
-                  .map((ticket) => (
+                {filteredTickets.map((ticket) => (
                   <tr key={ticket.id} className="hover:bg-blue-50/50 transition-colors group">
-                    <td className="px-6 py-4">
+                    <td className="px-4 md:px-6 py-4">
                       <span className="font-mono text-sm text-[#1E3A8A] font-medium">{ticket.id}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 md:px-6 py-4">
                       <p className="font-medium text-gray-900">{ticket.title}</p>
                     </td>
-                    <td className="px-6 py-4 text-gray-600 text-sm">{ticket.location}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 md:px-6 py-4 text-gray-600 text-sm">{ticket.location}</td>
+                    <td className="px-4 md:px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         ticket.priority === 'High' ? 'bg-red-100 text-red-800' :
                         ticket.priority === 'Medium' ? 'bg-amber-100 text-amber-800' :
@@ -243,7 +244,7 @@ const Maintenance = () => {
                         {ticket.priority}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-4 md:px-6 py-4">
                       <div className="flex items-center">
                         <div className={`w-2 h-2 rounded-full mr-2 ${
                           ticket.status === 'Pending' ? 'bg-amber-500' :
@@ -253,9 +254,9 @@ const Maintenance = () => {
                         <span className="text-sm font-medium text-gray-700">{ticket.status}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{ticket.assignedTo}</td>
-                    <td className="px-6 py-4 text-sm text-gray-500">{ticket.date}</td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                    <td className="px-4 md:px-6 py-4 text-sm text-gray-600">{ticket.assignedTo}</td>
+                    <td className="px-4 md:px-6 py-4 text-sm text-gray-500">{ticket.date}</td>
+                    <td className="px-4 md:px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end space-x-2">
                         {isAdmin && (
                           <>
@@ -281,6 +282,77 @@ const Maintenance = () => {
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden">
+          {loading ? (
+            <div className="flex justify-center items-center py-20">
+              <div className="w-8 h-8 border-4 border-[#1E3A8A] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : filteredTickets.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">No tickets found</div>
+          ) : (
+            <div className="flex flex-col divide-y divide-gray-100">
+              {filteredTickets.map((ticket) => (
+                <div key={ticket.id} className="p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="font-mono text-xs text-[#1E3A8A] font-semibold">{ticket.id}</span>
+                      <h3 className="font-medium text-gray-900 leading-tight mt-0.5">{ticket.title}</h3>
+                    </div>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
+                      ticket.priority === 'High' ? 'bg-red-100 text-red-700' :
+                      ticket.priority === 'Medium' ? 'bg-amber-100 text-amber-700' :
+                      'bg-green-100 text-green-700'
+                    }`}>
+                      {ticket.priority}
+                    </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-y-2 text-sm mt-3">
+                    <div className="text-gray-500 text-xs">Location</div>
+                    <div className="text-right text-gray-900 font-medium text-xs">{ticket.location}</div>
+                    
+                    <div className="text-gray-500 text-xs">Status</div>
+                    <div className="flex justify-end items-center">
+                      <div className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                        ticket.status === 'Pending' ? 'bg-amber-500' :
+                        ticket.status === 'In Progress' ? 'bg-blue-500' :
+                        'bg-green-500'
+                      }`}></div>
+                      <span className="font-medium text-gray-700 text-xs">{ticket.status}</span>
+                    </div>
+                    
+                    <div className="text-gray-500 text-xs">Assigned To</div>
+                    <div className="text-right text-gray-900 text-xs">{ticket.assignedTo}</div>
+                    
+                    <div className="text-gray-500 text-xs">Date</div>
+                    <div className="text-right text-gray-900 text-xs">{ticket.date}</div>
+                  </div>
+                  
+                  {isAdmin && (
+                    <div className="flex justify-end gap-2 pt-3 mt-3 border-t border-gray-50">
+                      {ticket.status !== 'Completed' && (
+                        <button 
+                          onClick={() => handleUpdateStatus(ticket.id, 'Completed')}
+                          className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg shadow-sm flex-1"
+                        >
+                          Repaired
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => handleDeleteTicket(ticket.id)}
+                        className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg shadow-sm flex-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

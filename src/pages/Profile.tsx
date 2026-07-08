@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { User, Mail, Shield, Lock, Eye, EyeOff, Clock, Check, AlertCircle, Edit3, Save } from 'lucide-react';
-import { api } from '../lib/api';
+import { api, uploadImage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 interface LoginEntry {
@@ -17,6 +17,8 @@ const Profile = () => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [fullName, setFullName] = useState(user?.user_metadata?.full_name || '');
   const [savingProfile, setSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Password change
   const [currentPassword, setCurrentPassword] = useState('');
@@ -86,6 +88,45 @@ const Profile = () => {
       showToast(err.message || 'Failed to update profile', 'error');
     } finally {
       setSavingProfile(false);
+    }
+  };
+
+  // Avatar upload
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAvatar(true);
+    try {
+      // 1. Upload to storage
+      const publicUrl = await uploadImage(file, 'facility-photos');
+      
+      // 2. Save to auth profile
+      await api.put<any>('/auth/profile', { 
+        fullName: user?.user_metadata?.full_name || 'User',
+        avatarUrl: publicUrl
+      });
+
+      // 3. Update localStorage
+      const updatedUser = {
+        ...user,
+        user_metadata: {
+          ...user?.user_metadata,
+          avatar_url: publicUrl,
+        },
+      };
+      localStorage.setItem('pvpsit_auth_user', JSON.stringify(updatedUser));
+      
+      // Force reload to let AuthContext pick it up, or just rely on onAuthStateChange if it triggers
+      // onAuthStateChange might trigger for updateUser, but we can also just show a toast
+      showToast('Profile picture updated successfully! It may take a moment to appear everywhere.');
+      
+      // Clear input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err: any) {
+      showToast(err.message || 'Failed to upload profile picture', 'error');
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -162,9 +203,36 @@ const Profile = () => {
             {/* Gradient banner */}
             <div className="h-28 bg-gradient-to-br from-[#1E3A8A] to-indigo-500 relative">
               <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-400 flex items-center justify-center text-white text-2xl font-extrabold shadow-lg border-4 border-white">
-                  {initials}
+                <div 
+                  className="group relative w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-extrabold shadow-lg border-4 border-white overflow-hidden bg-gradient-to-br from-[#1E3A8A] to-indigo-400 cursor-pointer"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {user?.user_metadata?.avatar_url ? (
+                    <img 
+                      src={user.user_metadata.avatar_url} 
+                      alt="Profile" 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{initials}</span>
+                  )}
+                  
+                  {/* Upload overlay */}
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    {isUploadingAvatar ? (
+                      <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Edit3 size={20} className="text-white drop-shadow-md" />
+                    )}
+                  </div>
                 </div>
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleAvatarUpload} 
+                  accept="image/*" 
+                  className="hidden" 
+                />
               </div>
             </div>
 

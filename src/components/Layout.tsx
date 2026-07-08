@@ -15,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../lib/api';
+import { api, checkAndReleaseFacilities } from '../lib/api';
 
 const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) => {
   const { signOut } = useAuth();
@@ -220,7 +220,19 @@ const Header = ({ onMenuClick }: { onMenuClick: () => void }) => {
       if (saved) { try { setNotifications(JSON.parse(saved)); } catch (e) {} }
     };
     window.addEventListener('pvpsit_notifications_updated', handleSync);
-    return () => window.removeEventListener('pvpsit_notifications_updated', handleSync);
+    
+    // Listen for manual toast triggers
+    const handleToast = (e: any) => {
+      if (e.detail && e.detail.title) {
+        addNotifRef.current(e.detail.title, e.detail.desc);
+      }
+    };
+    window.addEventListener('pvpsit_show_toast', handleToast);
+    
+    return () => {
+      window.removeEventListener('pvpsit_notifications_updated', handleSync);
+      window.removeEventListener('pvpsit_show_toast', handleToast);
+    };
   }, [notificationKey]);
 
   // Admin polling: detect new Pending bookings every 15s (fallback when WS is missed)
@@ -571,7 +583,15 @@ const Header = ({ onMenuClick }: { onMenuClick: () => void }) => {
             onClick={() => setShowProfileMenu(!showProfileMenu)}
             className="flex items-center space-x-2 text-gray-700 hover:text-[#1E3A8A] transition-colors"
           >
-            <UserCircle size={28} />
+            {user?.user_metadata?.avatar_url ? (
+              <img 
+                src={user.user_metadata.avatar_url} 
+                alt="Profile" 
+                className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm"
+              />
+            ) : (
+              <UserCircle size={28} />
+            )}
             <div className="text-left hidden md:block">
               <p className="text-sm font-semibold leading-none">{displayName}</p>
               <p className="text-xs text-gray-500 mt-1">{role}</p>
@@ -632,6 +652,19 @@ const Header = ({ onMenuClick }: { onMenuClick: () => void }) => {
 
 const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // Run auto-release check for facilities periodically
+  useEffect(() => {
+    // Initial check
+    checkAndReleaseFacilities();
+    
+    // Check every 60 seconds
+    const interval = setInterval(() => {
+      checkAndReleaseFacilities();
+    }, 60000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#F3F4F6] flex">

@@ -105,6 +105,15 @@ const Bookings = () => {
 
   useEffect(() => {
     fetchBookingsAndResources();
+
+    const handleAutoUpdate = () => {
+      fetchBookingsAndResources();
+    };
+    window.addEventListener('bookings_auto_updated', handleAutoUpdate);
+    
+    return () => {
+      window.removeEventListener('bookings_auto_updated', handleAutoUpdate);
+    };
   }, []);
 
   const fetchBookingsAndResources = async () => {
@@ -230,20 +239,12 @@ const Bookings = () => {
         localStorage.setItem(`pvpsit_booking_owner_${savedId}`, user.email);
         localStorage.setItem(`pvpsit_booking_owner_role_${savedId}`, user?.user_metadata?.role || 'Student');
 
-        // Immediately write "Booking Submitted" notification to THIS user's role-specific key
-        const notifKey = `pvpsit_notifications_${user.email}_${user?.user_metadata?.role || 'Student'}`;
-        const existing: any[] = JSON.parse(localStorage.getItem(notifKey) || '[]');
-        const submittedNotif = {
-          id: Date.now(),
-          title: 'Booking Submitted',
-          desc: `Your booking for ${bookingToInsert.location} has been submitted and is pending approval.`,
-          time: 'Just now',
-          unread: true
-        };
-        const updatedNotifs = [submittedNotif, ...existing];
-        localStorage.setItem(notifKey, JSON.stringify(updatedNotifs));
-        localStorage.setItem('pvpsit_notifications', JSON.stringify(updatedNotifs));
-        window.dispatchEvent(new Event('pvpsit_notifications_updated'));
+        window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+          detail: {
+            title: 'Booking Submitted',
+            desc: `Your booking for ${bookingToInsert.location} has been submitted and is pending approval.`
+          }
+        }));
       }
 
       setIsModalOpen(false);
@@ -539,7 +540,7 @@ const Bookings = () => {
               </div>
               <div className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                 <span className="text-gray-600 font-medium">Available Rooms</span>
-                <span className="text-xl font-bold text-green-600">8</span>
+                <span className="text-xl font-bold text-green-600">{facilities.filter(f => f.status === 'Available').length}</span>
               </div>
             </div>
           </div>

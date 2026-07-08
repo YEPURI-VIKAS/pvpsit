@@ -16,6 +16,7 @@ type Facility = {
 
 const Facilities = () => {
   const [facilities, setFacilities] = useState<Facility[]>([]);
+  const [activeBookings, setActiveBookings] = useState<any[]>([]);
   const { user } = useAuth();
   const isAdmin = user?.user_metadata?.role === 'Admin';
   const [loading, setLoading] = useState(true);
@@ -24,13 +25,26 @@ const Facilities = () => {
 
   useEffect(() => {
     fetchFacilities();
+
+    const handleAutoUpdate = () => {
+      fetchFacilities();
+    };
+    window.addEventListener('bookings_auto_updated', handleAutoUpdate);
+    
+    return () => {
+      window.removeEventListener('bookings_auto_updated', handleAutoUpdate);
+    };
   }, []);
 
   const fetchFacilities = async () => {
     try {
-      const data = await api.get<Facility[]>('/facilities');
-      data.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-      setFacilities(data);
+      const [facData, bookingsData] = await Promise.all([
+        api.get<Facility[]>('/facilities'),
+        api.get<any[]>('/bookings')
+      ]);
+      facData.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+      setFacilities(facData);
+      setActiveBookings(bookingsData.filter(b => b.status === 'Confirmed'));
     } catch (error) {
       console.error('Error fetching facilities:', error);
     } finally {
@@ -57,7 +71,9 @@ const Facilities = () => {
   
   // Booking form state
   const [bookingEvent, setBookingEvent] = useState('');
-  const [bookingTime, setBookingTime] = useState('');
+  const [bookingDate, setBookingDate] = useState('');
+  const [bookingStartTime, setBookingStartTime] = useState('');
+  const [bookingEndTime, setBookingEndTime] = useState('');
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [bookingError, setBookingError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,6 +148,10 @@ const Facilities = () => {
     try {
       await api.delete(`/facilities/${id}`);
       setFacilities(prev => prev.filter(f => f.id !== id));
+      
+      window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+        detail: { title: 'Facility Deleted', desc: `Facility ${id} has been permanently removed.` }
+      }));
     } catch (error) {
       console.error('Error deleting facility:', error);
       alert('Failed to delete facility.');
@@ -148,7 +168,9 @@ const Facilities = () => {
   const handleBookNow = (facility: Facility) => {
     setSelectedFacility(facility);
     setBookingEvent('');
-    setBookingTime('');
+    setBookingDate(new Date().toISOString().split('T')[0]);
+    setBookingStartTime('');
+    setBookingEndTime('');
     setBookingSuccess(false);
     setBookingError('');
     setIsSubmitting(false);
@@ -173,27 +195,40 @@ const Facilities = () => {
     try {
       const id = `BKG-${Math.floor(Math.random() * 10000)}`;
       
-      // Format datetime-local (YYYY-MM-DDTHH:MM) to "YYYY-MM-DD at HH:MM AM/PM"
-      const [datePart, timePart] = bookingTime.split('T');
-      const formatTime = (t: string) => {
-        if (!t) return '12:00 PM';
-        const [hours, minutes] = t.split(':');
+      // Format 24h to 12h
+      const formatTime = (time24: string) => {
+        if (!time24) return '';
+        const [hours, minutes] = time24.split(':');
         const h = parseInt(hours);
         const ampm = h >= 12 ? 'PM' : 'AM';
         const h12 = h % 12 || 12;
         return `${h12.toString().padStart(2, '0')}:${minutes} ${ampm}`;
       };
-      const timeString = datePart && timePart ? `${datePart} at ${formatTime(timePart)}` : '2026-05-20 at 09:00 AM - 11:00 AM';
+      const timeString = `${bookingDate} at ${formatTime(bookingStartTime)} - ${formatTime(bookingEndTime)}`;
 
       await api.post('/bookings', {
         id,
         title: bookingEvent,
         time: timeString,
         location: selectedFacility?.name || '',
+        facilityId: selectedFacility?.id || '',
         organizer: user?.user_metadata?.full_name || 'Staff Member',
         organizerEmail: user?.email || '',
         status: 'Pending'
       });
+
+      // Map booking ID to student's email+role so admin can notify them later
+      if (user?.email) {
+        localStorage.setItem(`pvpsit_booking_owner_${id}`, user.email);
+        localStorage.setItem(`pvpsit_booking_owner_role_${id}`, user?.user_metadata?.role || 'Student');
+
+        window.dispatchEvent(new CustomEvent('pvpsit_show_toast', {
+          detail: {
+            title: 'Booking Submitted',
+            desc: `Your booking for ${selectedFacility?.name || 'facility'} has been submitted and is pending approval.`
+          }
+        }));
+      }
 
       setBookingError('');
       setBookingSuccess(true);
@@ -306,7 +341,7 @@ const Facilities = () => {
                     <p className="text-sm text-gray-500">Capacity</p>
                     <p className="font-semibold text-gray-900">{facility.capacity}</p>
                   </div>
-                  <div>
+                  <div className="flex flex-col items-end">
                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${
                       facility.status === 'Available' ? 'bg-green-100 text-green-700' :
                       facility.status === 'In Use' ? 'bg-blue-100 text-blue-700' :
@@ -314,6 +349,23 @@ const Facilities = () => {
                     }`}>
                       {facility.status}
                     </span>
+                    {facility.status === 'In Use' && (() => {
+                       const bkg = activeBookings.find(b => 
+                         (b.facilityId && b.facilityId === facility.id) || 
+                         (b.location && b.location.toLowerCase() === facility.name.toLowerCase()) ||
+                         (b.location && b.location.toLowerCase() === facility.id.toLowerCase())
+                       );
+                       
+                       if (!bkg) return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                       
+                       const match = bkg.time ? bkg.time.match(/-\s+(.+)$/) : null;
+                       const endTime = match ? match[1] : bkg.time;
+                       
+                       if (endTime) {
+                         return <div className="text-[10px] text-blue-600 mt-1.5 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shadow-sm whitespace-nowrap">Available at {endTime}</div>;
+                       }
+                       return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                    })()}
                   </div>
                 </div>
 
@@ -446,13 +498,32 @@ const Facilities = () => {
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase font-semibold">Current Status</p>
-                <span className={`inline-flex px-2 py-0.5 mt-1 text-xs font-medium rounded-full ${
-                  selectedFacility.status === 'Available' ? 'bg-green-100 text-green-700' :
-                  selectedFacility.status === 'In Use' ? 'bg-blue-100 text-blue-700' :
-                  'bg-red-100 text-red-700'
-                }`}>
-                  {selectedFacility.status}
-                </span>
+                <div className="flex flex-col items-start mt-1">
+                  <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                    selectedFacility.status === 'Available' ? 'bg-green-100 text-green-700' :
+                    selectedFacility.status === 'In Use' ? 'bg-blue-100 text-blue-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {selectedFacility.status}
+                  </span>
+                  {selectedFacility.status === 'In Use' && (() => {
+                     const bkg = activeBookings.find(b => 
+                       (b.facilityId && b.facilityId === selectedFacility.id) || 
+                       (b.location && b.location.toLowerCase() === selectedFacility.name.toLowerCase()) ||
+                       (b.location && b.location.toLowerCase() === selectedFacility.id.toLowerCase())
+                     );
+                     
+                     if (!bkg) return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                     
+                     const match = bkg.time ? bkg.time.match(/-\s+(.+)$/) : null;
+                     const endTime = match ? match[1] : bkg.time;
+                     
+                     if (endTime) {
+                       return <div className="text-[10px] text-blue-600 mt-1.5 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shadow-sm whitespace-nowrap">Available at {endTime}</div>;
+                     }
+                     return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                  })()}
+                </div>
               </div>
             </div>
 
@@ -530,8 +601,19 @@ const Facilities = () => {
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
-              <input required type="datetime-local" value={bookingTime} onChange={e => setBookingTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+              <input required type="date" value={bookingDate} onChange={e => setBookingDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
+                <input required type="time" value={bookingStartTime} onChange={e => setBookingStartTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
+                <input required type="time" value={bookingEndTime} onChange={e => setBookingEndTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-[#1E3A8A] focus:border-[#1E3A8A] outline-none" />
+              </div>
             </div>
 
             <div className="pt-4 flex justify-end space-x-3 border-t border-gray-100 mt-6">

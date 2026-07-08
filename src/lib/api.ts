@@ -115,6 +115,67 @@ function toFacilityRow(body: any) {
   return row;
 }
 
+// ── Auto Release Expired Bookings ────────────────────────────────────────────
+
+export const checkAndReleaseFacilities = async () => {
+  try {
+    const { data: bookings } = await supabase.from('bookings').select('*');
+    if (!bookings) return;
+    
+    let needsUpdate = false;
+    
+    for (const b of bookings) {
+      if (b.status !== 'Confirmed') continue;
+      
+      const timeString = b.time || '';
+      const regex = /^(\d{4}-\d{2}-\d{2})\s+at\s+(.+?)\s+-\s+(.+)$/;
+      const match = timeString.match(regex);
+      if (!match) continue;
+      
+      const datePart = match[1];
+      const endTimeStr = match[3];
+      
+      const timeMatch = endTimeStr.match(/^(\d{1,2}):(\d{2})\s+(AM|PM)$/i);
+      if (!timeMatch) continue;
+      
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      const ampm = timeMatch[3].toUpperCase();
+      
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      
+      const endDate = new Date(`${datePart}T00:00:00`);
+      endDate.setHours(hours, minutes, 0, 0);
+      
+      if (endDate < new Date()) {
+        // Expired! Update booking to Completed
+        await supabase.from('bookings').update({ status: 'Completed' }).eq('id', b.id);
+        needsUpdate = true;
+        
+        // Find corresponding facility and set to Available
+        if (b.facility_id) {
+          await supabase.from('facilities').update({ status: 'Available' }).eq('id', b.facility_id);
+        } else if (b.location) {
+          // Fallback location match
+          const { data: facs } = await supabase.from('facilities').select('*');
+          const matched = (facs || []).find(f => f.name.toLowerCase() === b.location.toLowerCase() || f.id.toLowerCase() === b.location.toLowerCase());
+          if (matched) {
+             await supabase.from('facilities').update({ status: 'Available' }).eq('id', matched.id);
+          }
+        }
+      }
+    }
+    
+    if (needsUpdate) {
+      // Dispatch a custom event to notify components (like Bookings and Facilities pages)
+      window.dispatchEvent(new Event('bookings_auto_updated'));
+    }
+  } catch (error) {
+    console.error('Error auto-releasing facilities:', error);
+  }
+};
+
 // ── Generic error handler ────────────────────────────────────────────────────
 
 function handleError(error: any) {
@@ -438,7 +499,10 @@ async function resolvePut(endpoint: string, body: any): Promise<any> {
   // PUT /auth/profile — update display name via Supabase Auth metadata
   if (endpoint === '/auth/profile') {
     const { error } = await supabase.auth.updateUser({
-      data: { full_name: body.fullName },
+      data: { 
+        full_name: body.fullName,
+        ...(body.avatarUrl !== undefined && { avatar_url: body.avatarUrl })
+      },
     });
     if (error) throw new Error(error.message);
     // Also update the profiles table
