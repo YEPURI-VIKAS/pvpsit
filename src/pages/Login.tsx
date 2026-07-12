@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { DoorOpen, Mail, Lock, AlertCircle } from 'lucide-react';
+import { useEffect } from 'react';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -13,6 +14,13 @@ const Login = () => {
   const location = useLocation();
   const { login } = useAuth();
   const from = location.state?.from?.pathname || "/";
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('error') === 'account_deleted') {
+      setError('Access Denied: Your account has been deleted or deactivated by an administrator.');
+    }
+  }, [location.search]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,8 +44,19 @@ const Login = () => {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="flex justify-center">
-          <div className="bg-white p-3 rounded-2xl text-[#1E3A8A] shadow-xl border border-white/20">
-            <DoorOpen size={40} />
+          <div className="bg-white p-2 rounded-2xl shadow-xl border border-white/20 flex items-center justify-center w-20 h-20 overflow-hidden">
+            <img 
+              src="/college-logo.png" 
+              alt="PVPSIT Logo" 
+              className="w-full h-full object-contain" 
+              onError={(e) => { 
+                e.currentTarget.style.display = 'none'; 
+                if (e.currentTarget.nextElementSibling) {
+                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block'; 
+                }
+              }} 
+            />
+            <DoorOpen size={40} className="text-[#1E3A8A]" style={{ display: 'none' }} />
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 font-heading tracking-tight">

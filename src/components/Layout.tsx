@@ -38,8 +38,19 @@ const Sidebar = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
     <div className={`flex flex-col w-64 bg-[#1E3A8A] text-white h-screen fixed left-0 top-0 shadow-2xl z-40 transition-transform duration-300 md:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       <div className="p-6 flex items-center justify-between border-b border-white/10">
         <div className="flex items-center space-x-3">
-          <div className="bg-white p-2 rounded-xl text-[#1E3A8A]">
-            <DoorOpen size={24} />
+          <div className="bg-white p-1 rounded-xl flex items-center justify-center w-12 h-12 overflow-hidden shrink-0">
+            <img 
+              src="/college-logo.png" 
+              alt="PVPSIT Logo" 
+              className="w-full h-full object-contain" 
+              onError={(e) => { 
+                e.currentTarget.style.display = 'none'; 
+                if (e.currentTarget.nextElementSibling) {
+                  (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block'; 
+                }
+              }} 
+            />
+            <DoorOpen size={24} className="text-[#1E3A8A]" style={{ display: 'none' }} />
           </div>
           <div>
             <h1 className="font-heading font-bold text-lg leading-tight">PVPSIT</h1>

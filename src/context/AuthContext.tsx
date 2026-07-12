@@ -61,19 +61,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       supabase.from('profiles').select('role').eq('id', user.id).single()
         .then(({ data, error }) => {
           if (error) {
-             // Ignore errors, just mark as fetched to avoid infinite loops
-             setUser(prev => prev ? toAppUser(prev, undefined, true) : null);
+             if (error.code === 'PGRST116') {
+                // Profile not found -> Admin deleted this user. Force logout.
+                supabase.auth.signOut().then(() => {
+                  setUser(null);
+                  window.location.href = '/login?error=account_deleted';
+                });
+             } else {
+                // Ignore other errors, just mark as fetched to avoid infinite loops
+                setUser(prev => prev ? toAppUser(prev, undefined, true) : null);
+             }
           } else if (data && data.role) {
             setUser(prev => prev ? toAppUser(prev, data.role, true) : null);
-          } else {
-            // Self-heal profile if missing
-            supabase.from('profiles').insert({
-              id: user.id,
-              email: user.email,
-              full_name: user.user_metadata?.full_name || '',
-              role: user.user_metadata?.role || 'Student'
-            }).then(() => {});
-            setUser(prev => prev ? toAppUser(prev, undefined, true) : null);
           }
         });
     }

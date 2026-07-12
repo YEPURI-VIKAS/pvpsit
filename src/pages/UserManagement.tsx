@@ -7,6 +7,7 @@ interface User {
   id: string | number;
   email: string;
   fullName: string;
+  avatarUrl?: string;
   role: string;
   createdAt?: string;
   lastLogin?: string;
@@ -259,8 +260,12 @@ const UserManagement = () => {
                       >
                         <td className="px-4 md:px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0">
-                              {u.fullName ? u.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'}
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-xs font-bold shadow-sm shrink-0 overflow-hidden">
+                              {u.avatarUrl ? (
+                                <img src={u.avatarUrl} alt={u.fullName} className="w-full h-full object-cover" />
+                              ) : (
+                                u.fullName ? u.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'
+                              )}
                             </div>
                             <span className="font-semibold text-sm text-gray-900">{u.fullName || 'Unnamed'}</span>
                           </div>
@@ -366,8 +371,12 @@ const UserManagement = () => {
                   <div key={u.id} className="p-4 hover:bg-gray-50 transition-colors">
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
-                          {u.fullName ? u.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'}
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1E3A8A] to-indigo-500 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0 overflow-hidden">
+                          {u.avatarUrl ? (
+                            <img src={u.avatarUrl} alt={u.fullName} className="w-full h-full object-cover" />
+                          ) : (
+                            u.fullName ? u.fullName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'
+                          )}
                         </div>
                         <div>
                           <h3 className="font-bold text-sm text-gray-900 leading-tight">{u.fullName || 'Unnamed'}</h3>

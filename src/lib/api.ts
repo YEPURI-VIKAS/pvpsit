@@ -237,6 +237,7 @@ async function resolveGet(endpoint: string): Promise<any> {
       id: row.id,
       email: row.email,
       fullName: row.full_name,
+      avatarUrl: row.avatar_url,
       role: row.role,
       createdAt: row.created_at,
     }));
@@ -512,6 +513,7 @@ async function resolvePut(endpoint: string, body: any): Promise<any> {
         id: user.id,
         email: user.email,
         full_name: body.fullName,
+        avatar_url: body.avatarUrl || user.user_metadata?.avatar_url,
         role: user.user_metadata?.role,
       });
     }
