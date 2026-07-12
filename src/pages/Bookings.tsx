@@ -191,10 +191,20 @@ const Bookings = () => {
     location: '',
     organizer: ''
   });
+  const [bookingError, setBookingError] = useState('');
 
   const handleAddBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    if (newBooking.startTime && newBooking.endTime) {
+      if (newBooking.startTime >= newBooking.endTime) {
+        setBookingError("End time must be after the start time.");
+        return;
+      }
+    }
+    setBookingError('');
+
     setIsSubmitting(true);
     
     // Convert 24h to 12h format for display
@@ -248,16 +258,17 @@ const Bookings = () => {
       }
 
       setIsModalOpen(false);
-      setNewBooking({ 
-        title: '', 
-        date: getYYYYMMDD(currentDate),
-        startTime: '', 
-        endTime: '', 
+      setNewBooking({
+        title: '',
+        date: getYYYYMMDD(new Date()),
+        startTime: '',
+        endTime: '',
         resourceType: 'Facility',
         resourceId: '',
-        location: '', 
-        organizer: '' 
+        location: '',
+        organizer: ''
       });
+      setBookingError('');
     } catch (error) {
       console.error('Error adding booking:', error);
       alert('Failed to add booking.');
@@ -561,6 +572,7 @@ const Bookings = () => {
                   location: 'Main Auditorium',
                   organizer: ''
                 });
+                setBookingError('');
                 setIsSubmitting(false);
                 setIsModalOpen(true);
               }}
@@ -572,8 +584,14 @@ const Bookings = () => {
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="New Booking Reservation">
+      <Modal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setBookingError(''); }} title="New Booking Reservation">
         <form onSubmit={handleAddBooking} className="space-y-4">
+          {bookingError && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-100 flex items-center">
+              <AlertCircle size={16} className="mr-2 shrink-0" />
+              {bookingError}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Event / Booking Title</label>

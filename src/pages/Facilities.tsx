@@ -190,6 +190,13 @@ const Facilities = () => {
       return;
     }
     
+    if (bookingStartTime && bookingEndTime) {
+      if (bookingStartTime >= bookingEndTime) {
+        setBookingError('End time must be after the start time.');
+        return;
+      }
+    }
+    
     setIsSubmitting(true);
     submittingRef.current = true;
     try {
