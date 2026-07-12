@@ -378,7 +378,7 @@ const Header = ({ onMenuClick }: { onMenuClick: () => void }) => {
       {toast && (
         <div 
           onClick={handleToastClick}
-          className="fixed top-6 right-6 bg-white text-gray-900 px-5 py-4 rounded-2xl border border-gray-100 hover:border-blue-300 shadow-2xl animate-in slide-in-from-right fade-in duration-300 flex items-start z-50 max-w-sm cursor-pointer transition-all hover:scale-[1.02]"
+          className="fixed bottom-6 left-4 right-4 md:left-auto md:bottom-auto md:top-6 md:right-6 bg-white text-gray-900 px-5 py-4 rounded-2xl border border-gray-100 hover:border-blue-300 shadow-2xl animate-in slide-in-from-bottom-4 md:slide-in-from-right fade-in duration-300 flex items-start z-[100] md:max-w-sm cursor-pointer transition-all hover:scale-[1.02]"
         >
           <div className="w-2.5 h-2.5 bg-blue-600 rounded-full mr-3.5 mt-1.5 shrink-0 animate-ping"></div>
           <div className="flex-1">
