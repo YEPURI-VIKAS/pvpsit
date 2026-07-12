@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Calendar as CalendarIcon, Clock, Users, Plus, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Users, Plus, ChevronLeft, ChevronRight, Download, AlertCircle } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
