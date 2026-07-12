@@ -198,7 +198,30 @@ const Bookings = () => {
     if (isSubmitting) return;
 
     if (newBooking.startTime && newBooking.endTime) {
-      if (newBooking.startTime >= newBooking.endTime) {
+      // Helper to convert time strings (both 24h and 12h) to minutes for bulletproof comparison
+      const getMinutes = (timeStr: string) => {
+        let h = 0, m = 0;
+        if (timeStr.toLowerCase().includes('m')) {
+          const match = timeStr.match(/(\d+):(\d+)\s*([AP]M)/i);
+          if (match) {
+            h = parseInt(match[1]);
+            m = parseInt(match[2]);
+            const ampm = match[3].toUpperCase();
+            if (ampm === 'PM' && h < 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+          }
+        } else {
+          const parts = timeStr.split(':');
+          h = parseInt(parts[0] || '0');
+          m = parseInt(parts[1] || '0');
+        }
+        return h * 60 + m;
+      };
+
+      const startMins = getMinutes(newBooking.startTime);
+      const endMins = getMinutes(newBooking.endTime);
+
+      if (startMins >= endMins) {
         setBookingError("End time must be after the start time.");
         return;
       }
