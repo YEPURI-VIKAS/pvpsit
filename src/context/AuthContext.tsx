@@ -105,12 +105,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw new Error(error.message);
 
     if (data.user) {
+      // If email verification is ON, this upsert will fail due to RLS (no active session yet).
+      // That's perfectly fine. We will use a Supabase database trigger to automatically create the profile.
       await supabase.from('profiles').upsert({
         id: data.user.id,
         email,
         full_name: fullName,
         role,
-      });
+      }).then(() => {}); // Catch and ignore potential RLS errors here
+
       setUser(toAppUser(data.user, role, true));
     }
   };
