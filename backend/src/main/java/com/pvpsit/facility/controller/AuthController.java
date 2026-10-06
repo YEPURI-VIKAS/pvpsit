@@ -78,6 +78,10 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid email or password."));
         }
 
+        // Update user lastLogin timestamp
+        user.setLastLogin(java.time.LocalDateTime.now());
+        userRepository.save(user);
+
         // Record login event
         String ip = httpRequest.getRemoteAddr();
         loginHistoryRepository.save(new LoginHistory(user.getId(), user.getEmail(), user.getFullName(), "LOGIN", ip));

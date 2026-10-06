@@ -24,6 +24,8 @@ public class UserController {
             map.put("email", user.getEmail());
             map.put("fullName", user.getFullName());
             map.put("role", user.getRole());
+            map.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+            map.put("lastLogin", user.getLastLogin() != null ? user.getLastLogin().toString() : null);
             return map;
         }).collect(Collectors.toList());
     }

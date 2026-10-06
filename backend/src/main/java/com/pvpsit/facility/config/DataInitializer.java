@@ -29,6 +29,9 @@ public class DataInitializer implements CommandLineRunner {
     private MaintenanceTicketRepository ticketRepository;
 
     @Autowired
+    private LoginHistoryRepository loginHistoryRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Override
@@ -41,7 +44,12 @@ public class DataInitializer implements CommandLineRunner {
             User staff1 = new User("staff@pvpsit.edu", passwordEncoder.encode("staff"), "Faculty Staff", "Faculty / Staff");
             User faculty = new User("faculty@pvpsit.edu.in", passwordEncoder.encode("faculty123"), "Dr. Prasad", "Faculty / Staff");
             
-            userRepository.saveAll(Arrays.asList(admin1, admin2, student1, staff1, faculty));
+            List<User> savedUsers = userRepository.saveAll(Arrays.asList(admin1, admin2, student1, staff1, faculty));
+            
+            // Seed initial login history
+            for (User u : savedUsers) {
+                loginHistoryRepository.save(new LoginHistory(u.getId(), u.getEmail(), u.getFullName(), "LOGIN", "127.0.0.1"));
+            }
         }
 
         // Initialize Core Campus Facilities

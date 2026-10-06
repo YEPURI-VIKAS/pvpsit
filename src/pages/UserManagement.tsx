@@ -112,8 +112,30 @@ const UserManagement = () => {
     setExpandedUserId(prev => prev === userId ? null : userId);
   };
 
-  const getUserLoginHistory = (userId: string | number) => {
-    return loginHistory.filter(entry => String(entry.userId) === String(userId));
+  const getUserLoginHistory = (user: User) => {
+    return loginHistory.filter(entry => 
+      String(entry.userId) === String(user.id) ||
+      (entry.email && user.email && entry.email.toLowerCase() === user.email.toLowerCase())
+    );
+  };
+
+  const formatLastLogin = (u: User, userHistory: LoginEntry[]) => {
+    const rawTime = u.lastLogin || userHistory[0]?.timestamp;
+    if (!rawTime) return 'Never';
+    try {
+      const d = new Date(rawTime);
+      if (isNaN(d.getTime())) return 'Never';
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return 'Never';
+    }
   };
 
   // Filter users
@@ -249,7 +271,7 @@ const UserManagement = () => {
               <tbody className="divide-y divide-gray-50">
                 {filteredUsers.map((u) => {
                   const isExpanded = expandedUserId === u.id;
-                  const userHistory = getUserLoginHistory(u.id);
+                  const userHistory = getUserLoginHistory(u);
                   const isSelf = String(currentUser?.id) === String(u.id);
 
                   return (
@@ -290,9 +312,9 @@ const UserManagement = () => {
                           </select>
                         </td>
                         <td className="px-4 md:px-6 py-4">
-                          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-                            <Clock size={12} />
-                            <span>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}</span>
+                          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
+                            <Clock size={12} className="text-gray-400" />
+                            <span>{formatLastLogin(u, userHistory)}</span>
                           </div>
                         </td>
                         <td className="px-4 md:px-6 py-4">
@@ -364,7 +386,7 @@ const UserManagement = () => {
             <div className="flex flex-col divide-y divide-gray-100">
               {filteredUsers.map((u) => {
                 const isExpanded = expandedUserId === u.id;
-                const userHistory = getUserLoginHistory(u.id);
+                const userHistory = getUserLoginHistory(u);
                 const isSelf = String(currentUser?.id) === String(u.id);
 
                 return (
@@ -427,7 +449,7 @@ const UserManagement = () => {
                       <div className="text-gray-500 text-xs flex items-center">Last Login</div>
                       <div className="flex justify-end items-center gap-1.5 text-xs text-gray-700 font-medium">
                         <Clock size={12} className="text-gray-400" />
-                        <span>{u.lastLogin ? new Date(u.lastLogin).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Never'}</span>
+                        <span>{formatLastLogin(u, userHistory)}</span>
                       </div>
                     </div>
 
