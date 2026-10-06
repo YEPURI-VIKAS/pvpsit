@@ -21,6 +21,7 @@ public class Facility {
     @Column(nullable = false)
     private String status;
 
+    @Column(columnDefinition = "TEXT")
     private String image;
 
     @ElementCollection(fetch = FetchType.EAGER)

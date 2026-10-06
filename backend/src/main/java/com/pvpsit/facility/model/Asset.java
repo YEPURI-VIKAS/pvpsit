@@ -23,6 +23,9 @@ public class Asset {
     @Column(name = "purchase_date")
     private String purchaseDate;
 
+    @Column(columnDefinition = "TEXT")
+    private String image;
+
     public Asset() {}
 
     public Asset(String id, String name, String category, String location, String status, String purchaseDate) {
@@ -32,6 +35,16 @@ public class Asset {
         this.location = location;
         this.status = status;
         this.purchaseDate = purchaseDate;
+    }
+
+    public Asset(String id, String name, String category, String location, String status, String purchaseDate, String image) {
+        this.id = id;
+        this.name = name;
+        this.category = category;
+        this.location = location;
+        this.status = status;
+        this.purchaseDate = purchaseDate;
+        this.image = image;
     }
 
     public String getId() { return id; }
@@ -46,4 +59,6 @@ public class Asset {
     public void setStatus(String status) { this.status = status; }
     public String getPurchaseDate() { return purchaseDate; }
     public void setPurchaseDate(String purchaseDate) { this.purchaseDate = purchaseDate; }
+    public String getImage() { return image; }
+    public void setImage(String image) { this.image = image; }
 }

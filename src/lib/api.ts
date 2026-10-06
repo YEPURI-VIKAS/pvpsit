@@ -68,8 +68,17 @@ export const api = {
   },
 };
 
-export async function uploadImage(file: File, bucket: string = 'facility-photos'): Promise<string> {
-  // To be implemented on the backend
-  console.warn("Image upload is mocked because the backend endpoint is not yet implemented.", file.name, bucket);
-  return "https://images.unsplash.com/photo-1562774053-701939374585?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80";
+export async function uploadImage(file: File, _bucket: string = 'facility-photos'): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Failed to process image file"));
+      }
+    };
+    reader.onerror = () => reject(new Error("Failed to read image file"));
+    reader.readAsDataURL(file);
+  });
 }

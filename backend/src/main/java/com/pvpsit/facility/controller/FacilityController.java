@@ -141,6 +141,22 @@ public class FacilityController {
         return ResponseEntity.ok(saved);
     }
 
+    @PatchMapping("/{id}")
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY_STAFF')")
+    public ResponseEntity<Facility> updateFacility(@PathVariable String id, @RequestBody Facility facilityDetails) {
+        return facilityRepository.findById(id).map(facility -> {
+            if (facilityDetails.getName() != null) facility.setName(facilityDetails.getName());
+            if (facilityDetails.getType() != null) facility.setType(facilityDetails.getType());
+            if (facilityDetails.getCapacity() != null) facility.setCapacity(facilityDetails.getCapacity());
+            if (facilityDetails.getStatus() != null) facility.setStatus(facilityDetails.getStatus());
+            if (facilityDetails.getImage() != null) facility.setImage(facilityDetails.getImage());
+            if (facilityDetails.getEquipment() != null) facility.setEquipment(facilityDetails.getEquipment());
+            Facility updated = facilityRepository.save(facility);
+            return ResponseEntity.ok(updated);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteFacility(@PathVariable String id) {

@@ -35,6 +35,22 @@ public class AssetController {
         return ResponseEntity.ok(saved);
     }
 
+    @PatchMapping("/{id}")
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Asset> updateAsset(@PathVariable String id, @RequestBody Asset assetDetails) {
+        return assetRepository.findById(id).map(asset -> {
+            if (assetDetails.getName() != null) asset.setName(assetDetails.getName());
+            if (assetDetails.getCategory() != null) asset.setCategory(assetDetails.getCategory());
+            if (assetDetails.getLocation() != null) asset.setLocation(assetDetails.getLocation());
+            if (assetDetails.getStatus() != null) asset.setStatus(assetDetails.getStatus());
+            if (assetDetails.getPurchaseDate() != null) asset.setPurchaseDate(assetDetails.getPurchaseDate());
+            if (assetDetails.getImage() != null) asset.setImage(assetDetails.getImage());
+            Asset updated = assetRepository.save(asset);
+            return ResponseEntity.ok(updated);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteAsset(@PathVariable String id) {
