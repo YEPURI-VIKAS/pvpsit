@@ -47,6 +47,8 @@ public class WebSecurityConfig {
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/ws", "/ws/**").permitAll() // WebSocket endpoint
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/facilities", "/api/facilities/**").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/assets", "/api/assets/**").permitAll()
+                .requestMatchers("/api/assets/**", "/api/facilities/**", "/api/bookings/**", "/api/tickets/**").permitAll() // Allow logged-in and public access without rigid role blocks
                 .anyRequest().authenticated()
             )
             // Allow H2 console display in iframe

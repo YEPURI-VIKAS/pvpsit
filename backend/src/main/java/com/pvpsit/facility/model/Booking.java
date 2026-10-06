@@ -26,6 +26,9 @@ public class Booking {
     @Column
     private String organizerEmail; // student's email for targeted WS notifications
 
+    @Column
+    private String facilityId;
+
     public Booking() {}
 
     public Booking(String id, String title, String time, String location, String organizer, String status) {
@@ -51,4 +54,6 @@ public class Booking {
     public void setOrganizerEmail(String organizerEmail) { this.organizerEmail = organizerEmail; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getFacilityId() { return facilityId; }
+    public void setFacilityId(String facilityId) { this.facilityId = facilityId; }
 }

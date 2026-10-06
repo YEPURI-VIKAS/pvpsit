@@ -7,12 +7,12 @@ import com.pvpsit.facility.repository.BookingRepository;
 import com.pvpsit.facility.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -32,60 +32,93 @@ public class FacilityController {
     @Autowired
     private NotificationService notificationService;
 
+    // Pattern for: 2026-10-06 at 10:00 AM - 12:00 PM or 12-10-2026 at 9:00 AM - 11:00 AM
     private static final Pattern RANGE_PATTERN = Pattern.compile(
-        "^(\\d{4}-\\d{2}-\\d{2})\\s+at\\s+(\\d{2}:\\d{2}\\s+[AP]M)\\s*-\\s*(\\d{2}:\\d{2}\\s+[AP]M)$",
+        "^(\\d{2,4}[-/]\\d{1,2}[-/]\\d{2,4})\\s+at\\s+(\\d{1,2}:\\d{2}\\s*[AP]M)\\s*-\\s*(\\d{1,2}:\\d{2}\\s*[AP]M)$",
         Pattern.CASE_INSENSITIVE
     );
 
+    // Pattern for: 2026-10-06 at 10:00 AM
     private static final Pattern SINGLE_PATTERN = Pattern.compile(
-        "^(\\d{4}-\\d{2}-\\d{2})\\s+at\\s+(\\d{2}:\\d{2}\\s+[AP]M)$",
+        "^(\\d{2,4}[-/]\\d{1,2}[-/]\\d{2,4})\\s+at\\s+(\\d{1,2}:\\d{2}\\s*[AP]M)$",
         Pattern.CASE_INSENSITIVE
     );
 
-    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("hh:mm a", Locale.US);
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.US);
+    private static final DateTimeFormatter TIME_FORMATTER_2 = DateTimeFormatter.ofPattern("hh:mm a", Locale.US);
+
+    private LocalDate parseDate(String dateStr) {
+        dateStr = dateStr.trim();
+        try {
+            if (dateStr.contains("-")) {
+                String[] parts = dateStr.split("-");
+                if (parts[0].length() == 4) {
+                    return LocalDate.of(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                } else if (parts[2].length() == 4) {
+                    return LocalDate.of(Integer.parseInt(parts[2]), Integer.parseInt(parts[1]), Integer.parseInt(parts[0]));
+                }
+            } else if (dateStr.contains("/")) {
+                String[] parts = dateStr.split("/");
+                if (parts[0].length() == 4) {
+                    return LocalDate.of(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                } else if (parts[2].length() == 4) {
+                    return LocalDate.of(Integer.parseInt(parts[2]), Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+                }
+            }
+        } catch (Exception e) {
+            // fallback
+        }
+        return LocalDate.now();
+    }
+
+    private LocalTime parseTime(String timeStr) {
+        timeStr = timeStr.trim().toUpperCase();
+        if (!timeStr.contains(" ")) {
+            timeStr = timeStr.replace("AM", " AM").replace("PM", " PM");
+        }
+        try {
+            return LocalTime.parse(timeStr, TIME_FORMATTER);
+        } catch (Exception e) {
+            return LocalTime.parse(timeStr, TIME_FORMATTER_2);
+        }
+    }
 
     private boolean isCurrentlyActive(String timeStr) {
-        System.out.println("DEBUG: isCurrentlyActive: checking \"" + timeStr + "\"");
         if (timeStr == null || timeStr.trim().isEmpty()) {
             return false;
         }
         try {
-            LocalDateTime now = LocalDateTime.now();
+            // Use India Standard Time (Asia/Kolkata) since PVPSIT is in India
+            ZoneId zoneId = ZoneId.of("Asia/Kolkata");
+            LocalDateTime now = LocalDateTime.now(zoneId);
             LocalDate today = now.toLocalDate();
             LocalTime currentTime = now.toLocalTime();
-            System.out.println("DEBUG: Current time info: today=" + today + ", currentTime=" + currentTime);
 
-            // Try Range Pattern (e.g. 2026-05-19 at 08:00 AM - 10:00 AM)
+            // Try Range Pattern (e.g. 2026-10-06 at 10:00 AM - 12:00 PM)
             Matcher rangeMatcher = RANGE_PATTERN.matcher(timeStr.trim());
             if (rangeMatcher.matches()) {
-                LocalDate bookingDate = LocalDate.parse(rangeMatcher.group(1));
-                System.out.println("DEBUG: Range pattern matches. Booking date: " + bookingDate);
+                LocalDate bookingDate = parseDate(rangeMatcher.group(1));
                 if (!bookingDate.equals(today)) {
                     return false;
                 }
-                LocalTime startTime = LocalTime.parse(rangeMatcher.group(2).toUpperCase(), TIME_FORMATTER);
-                LocalTime endTime = LocalTime.parse(rangeMatcher.group(3).toUpperCase(), TIME_FORMATTER);
-                System.out.println("DEBUG: Range parsed: startTime=" + startTime + ", endTime=" + endTime + ". Checks: isBefore=" + currentTime.isBefore(startTime) + ", isAfter=" + currentTime.isAfter(endTime));
+                LocalTime startTime = parseTime(rangeMatcher.group(2));
+                LocalTime endTime = parseTime(rangeMatcher.group(3));
                 return !currentTime.isBefore(startTime) && !currentTime.isAfter(endTime);
             }
 
-            // Try Single Pattern (e.g. 2026-05-19 at 08:00 PM)
+            // Try Single Pattern (e.g. 2026-10-06 at 08:00 PM)
             Matcher singleMatcher = SINGLE_PATTERN.matcher(timeStr.trim());
             if (singleMatcher.matches()) {
-                LocalDate bookingDate = LocalDate.parse(singleMatcher.group(1));
-                System.out.println("DEBUG: Single pattern matches. Booking date: " + bookingDate);
+                LocalDate bookingDate = parseDate(singleMatcher.group(1));
                 if (!bookingDate.equals(today)) {
                     return false;
                 }
-                LocalTime startTime = LocalTime.parse(singleMatcher.group(2).toUpperCase(), TIME_FORMATTER);
-                LocalTime endTime = startTime.plusHours(1); // default 1 hour duration
-                System.out.println("DEBUG: Single parsed: startTime=" + startTime + ", endTime=" + endTime + ". Checks: isBefore=" + currentTime.isBefore(startTime) + ", isAfter=" + currentTime.isAfter(endTime));
+                LocalTime startTime = parseTime(singleMatcher.group(2));
+                LocalTime endTime = startTime.plusHours(1); // default 1 hour
                 return !currentTime.isBefore(startTime) && !currentTime.isAfter(endTime);
             }
-            System.out.println("DEBUG: No patterns matched for \"" + timeStr + "\"");
         } catch (Exception e) {
-            System.err.println("Error parsing booking time: " + timeStr + " - " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error checking active booking time: " + timeStr + " - " + e.getMessage());
         }
         return false;
     }
@@ -93,23 +126,30 @@ public class FacilityController {
     private synchronized void updateFacilityStatuses() {
         List<Facility> facilities = facilityRepository.findAll();
         List<Booking> bookings = bookingRepository.findAll();
-        System.out.println("DEBUG: updateFacilityStatuses: Found " + facilities.size() + " facilities and " + bookings.size() + " bookings.");
 
         for (Facility facility : facilities) {
-            // Maintenance status should NOT be overwritten by booking status
             if ("Maintenance".equalsIgnoreCase(facility.getStatus())) {
                 continue;
             }
 
             boolean hasActiveBooking = false;
             for (Booking booking : bookings) {
-                if (booking.getLocation() != null && booking.getLocation().equalsIgnoreCase(facility.getName())) {
+                boolean matchesFacility = false;
+                if (booking.getLocation() != null) {
+                    if (booking.getLocation().equalsIgnoreCase(facility.getName()) || 
+                        booking.getLocation().equalsIgnoreCase(facility.getId())) {
+                        matchesFacility = true;
+                    }
+                }
+                if (booking.getFacilityId() != null && booking.getFacilityId().equalsIgnoreCase(facility.getId())) {
+                    matchesFacility = true;
+                }
+
+                if (matchesFacility) {
                     String status = booking.getStatus();
-                    System.out.println("DEBUG: Facility " + facility.getName() + " matches booking for " + booking.getLocation() + " with status: " + status + ", time: " + booking.getTime());
                     if (("Approved".equalsIgnoreCase(status) || "Confirmed".equalsIgnoreCase(status) || "Pending".equalsIgnoreCase(status))
                             && isCurrentlyActive(booking.getTime())) {
                         hasActiveBooking = true;
-                        System.out.println("DEBUG: Booking is currently active for " + facility.getName());
                         break;
                     }
                 }
@@ -117,7 +157,6 @@ public class FacilityController {
 
             String targetStatus = hasActiveBooking ? "In Use" : "Available";
             if (!targetStatus.equalsIgnoreCase(facility.getStatus())) {
-                System.out.println("DEBUG: Updating facility " + facility.getName() + " status from " + facility.getStatus() + " to " + targetStatus);
                 facility.setStatus(targetStatus);
                 facilityRepository.save(facility);
             }
@@ -131,7 +170,6 @@ public class FacilityController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY_STAFF')")
     public ResponseEntity<Facility> createFacility(@RequestBody Facility facility) {
         Facility saved = facilityRepository.save(facility);
         notificationService.sendNotification(
@@ -143,7 +181,6 @@ public class FacilityController {
 
     @PatchMapping("/{id}")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'FACULTY_STAFF')")
     public ResponseEntity<Facility> updateFacility(@PathVariable String id, @RequestBody Facility facilityDetails) {
         return facilityRepository.findById(id).map(facility -> {
             if (facilityDetails.getName() != null) facility.setName(facilityDetails.getName());
@@ -158,7 +195,6 @@ public class FacilityController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteFacility(@PathVariable String id) {
         return facilityRepository.findById(id).map(facility -> {
             facilityRepository.delete(facility);

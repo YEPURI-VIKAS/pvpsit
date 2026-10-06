@@ -36,6 +36,70 @@ const Facilities = () => {
     };
   }, []);
 
+  const isBookingNow = (timeStr: string) => {
+    if (!timeStr) return false;
+    try {
+      const regex = /^(\d{2,4}[-/]\d{1,2}[-/]\d{2,4})\s+at\s+(.+?)\s*-\s*(.+)$/i;
+      const match = timeStr.match(regex);
+      if (!match) return false;
+      const dateStr = match[1];
+      const startTimeStr = match[2];
+      const endTimeStr = match[3];
+      
+      let bDate: Date;
+      if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts[0].length === 4) {
+          bDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        } else {
+          bDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        }
+      } else {
+        const parts = dateStr.split('/');
+        if (parts[0].length === 4) {
+          bDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        } else {
+          bDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        }
+      }
+
+      const now = new Date();
+      if (bDate.getFullYear() !== now.getFullYear() || bDate.getMonth() !== now.getMonth() || bDate.getDate() !== now.getDate()) {
+        return false;
+      }
+
+      const parseMinutes = (t: string) => {
+        const m = t.match(/(\d+):(\d+)\s*([AP]M)/i);
+        if (!m) return 0;
+        let h = parseInt(m[1]);
+        const min = parseInt(m[2]);
+        const ampm = m[3].toUpperCase();
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        return h * 60 + min;
+      };
+
+      const startMins = parseMinutes(startTimeStr);
+      const endMins = parseMinutes(endTimeStr);
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+
+      return nowMins >= startMins && nowMins <= endMins;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const getLiveFacilityStatus = (fac: Facility) => {
+    if (fac.status === 'Maintenance') return 'Maintenance';
+    const hasLiveBooking = activeBookings.some(b => 
+      ((b.facilityId && b.facilityId === fac.id) ||
+       (b.location && (b.location.toLowerCase() === fac.name.toLowerCase() || b.location.toLowerCase() === fac.id.toLowerCase()))) &&
+      isBookingNow(b.time)
+    );
+    if (hasLiveBooking) return 'In Use';
+    return fac.status;
+  };
+
   const fetchFacilities = async () => {
     try {
       const [facData, bookingsData] = await Promise.all([
@@ -44,7 +108,7 @@ const Facilities = () => {
       ]);
       facData.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
       setFacilities(facData);
-      setActiveBookings(bookingsData.filter(b => b.status === 'Confirmed'));
+      setActiveBookings(bookingsData.filter(b => b.status === 'Confirmed' || b.status === 'Approved' || b.status === 'Pending'));
     } catch (error) {
       console.error('Error fetching facilities:', error);
     } finally {
@@ -332,11 +396,12 @@ const Facilities = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {facilities
-            .filter(f => 
-              (statusFilter === 'All' || f.status === statusFilter) &&
-              (f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-               f.id.toLowerCase().includes(searchQuery.toLowerCase()))
-            )
+            .filter(f => {
+              const liveStatus = getLiveFacilityStatus(f);
+              return (statusFilter === 'All' || liveStatus === statusFilter) &&
+                (f.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                 f.id.toLowerCase().includes(searchQuery.toLowerCase()));
+            })
             .map((facility) => (
             <div key={facility.id} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover-lift group flex flex-col h-full">
               <div 
@@ -372,29 +437,35 @@ const Facilities = () => {
                     <p className="font-semibold text-gray-900">{facility.capacity}</p>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                      facility.status === 'Available' ? 'bg-green-100 text-green-700' :
-                      facility.status === 'In Use' ? 'bg-blue-100 text-blue-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {facility.status}
-                    </span>
-                    {facility.status === 'In Use' && (() => {
-                       const bkg = activeBookings.find(b => 
-                         (b.facilityId && b.facilityId === facility.id) || 
-                         (b.location && b.location.toLowerCase() === facility.name.toLowerCase()) ||
-                         (b.location && b.location.toLowerCase() === facility.id.toLowerCase())
-                       );
-                       
-                       if (!bkg) return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
-                       
-                       const match = bkg.time ? bkg.time.match(/-\s+(.+)$/) : null;
-                       const endTime = match ? match[1] : bkg.time;
-                       
-                       if (endTime) {
-                         return <div className="text-[10px] text-blue-600 mt-1.5 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shadow-sm whitespace-nowrap">Available at {endTime}</div>;
-                       }
-                       return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                    {(() => {
+                      const currentStatus = getLiveFacilityStatus(facility);
+                      return (
+                        <>
+                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                            currentStatus === 'Available' ? 'bg-green-100 text-green-700' :
+                            currentStatus === 'In Use' ? 'bg-blue-100 text-blue-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {currentStatus}
+                          </span>
+                          {currentStatus === 'In Use' && (() => {
+                             const bkg = activeBookings.find(b => 
+                               (b.facilityId && b.facilityId === facility.id) || 
+                               (b.location && (b.location.toLowerCase() === facility.name.toLowerCase() || b.location.toLowerCase() === facility.id.toLowerCase()))
+                             );
+                             
+                             if (!bkg) return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                             
+                             const match = bkg.time ? bkg.time.match(/-\s+(.+)$/) : null;
+                             const endTime = match ? match[1] : bkg.time;
+                             
+                             if (endTime) {
+                               return <div className="text-[10px] text-blue-600 mt-1.5 font-semibold bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shadow-sm whitespace-nowrap">Available at {endTime}</div>;
+                             }
+                             return <div className="text-[10px] text-gray-500 mt-1.5 font-semibold">Unknown Time</div>;
+                          })()}
+                        </>
+                      );
                     })()}
                   </div>
                 </div>
