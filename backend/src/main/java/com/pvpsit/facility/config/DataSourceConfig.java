@@ -2,17 +2,21 @@ package com.pvpsit.facility.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import javax.sql.DataSource;
 import java.net.URI;
+import java.sql.Connection;
 
 @Configuration
 public class DataSourceConfig {
+
+    private static final Logger logger = LoggerFactory.getLogger(DataSourceConfig.class);
 
     @Value("${SPRING_DATASOURCE_URL:${DATABASE_URL:jdbc:h2:mem:facilitydb;DB_CLOSE_DELAY=-1}}")
     private String rawUrl;
@@ -26,19 +30,31 @@ public class DataSourceConfig {
     @Value("${SPRING_DATASOURCE_DRIVER_CLASS_NAME:}")
     private String driverClassName;
 
+    private DataSource createH2DataSource() {
+        logger.info("Initializing in-memory H2 database (facilitydb)...");
+        HikariConfig h2Config = new HikariConfig();
+        h2Config.setJdbcUrl("jdbc:h2:mem:facilitydb;DB_CLOSE_DELAY=-1;MODE=PostgreSQL");
+        h2Config.setDriverClassName("org.h2.Driver");
+        h2Config.setUsername("sa");
+        h2Config.setPassword("password");
+        h2Config.setMaximumPoolSize(10);
+        return new HikariDataSource(h2Config);
+    }
+
     @Bean
     @Primary
     public DataSource dataSource() {
-        HikariConfig config = new HikariConfig();
         String jdbcUrl = rawUrl.trim();
 
-        // Fix malformed URLs:
-        // Case 1: //host:port/db (missing protocol)
+        // If explicitly set to H2 or empty, use H2 directly
+        if (jdbcUrl.isEmpty() || jdbcUrl.contains(":h2:")) {
+            return createH2DataSource();
+        }
+
+        // Format Postgres URL
         if (jdbcUrl.startsWith("//")) {
             jdbcUrl = "jdbc:postgresql:" + jdbcUrl;
-        }
-        // Case 2: postgres://user:pass@host:port/db or postgresql://user:pass@host:port/db
-        else if (jdbcUrl.startsWith("postgres://") || jdbcUrl.startsWith("postgresql://")) {
+        } else if (jdbcUrl.startsWith("postgres://") || jdbcUrl.startsWith("postgresql://")) {
             try {
                 URI uri = new URI(jdbcUrl);
                 String userInfo = uri.getUserInfo();
@@ -54,40 +70,35 @@ public class DataSourceConfig {
                 }
                 jdbcUrl = String.format("jdbc:postgresql://%s:%d/%s", uri.getHost(), port, path);
             } catch (Exception e) {
-                // If URI parsing fails, prepend jdbc:
                 if (!jdbcUrl.startsWith("jdbc:")) {
                     jdbcUrl = "jdbc:" + jdbcUrl;
                 }
             }
-        }
-        // Case 3: Bare host:port/db
-        else if (!jdbcUrl.startsWith("jdbc:")) {
+        } else if (!jdbcUrl.startsWith("jdbc:")) {
             jdbcUrl = "jdbc:postgresql://" + jdbcUrl;
         }
 
-        config.setJdbcUrl(jdbcUrl);
-
-        // Determine driver based on URL
-        if (jdbcUrl.contains(":h2:")) {
-            config.setDriverClassName("org.h2.Driver");
-            config.setUsername(username.isEmpty() ? "sa" : username);
-            config.setPassword(password.isEmpty() ? "password" : password);
-        } else if (jdbcUrl.contains(":postgresql:")) {
+        try {
+            logger.info("Attempting database connection to: {}", jdbcUrl);
+            HikariConfig config = new HikariConfig();
+            config.setJdbcUrl(jdbcUrl);
             config.setDriverClassName("org.postgresql.Driver");
             config.setUsername(username);
             config.setPassword(password);
-        } else if (!driverClassName.isEmpty()) {
-            config.setDriverClassName(driverClassName);
-            config.setUsername(username);
-            config.setPassword(password);
+            config.setMaximumPoolSize(10);
+            config.setMinimumIdle(2);
+            config.setConnectionTimeout(5000); // 5 sec timeout
+            config.setValidationTimeout(3000);
+
+            HikariDataSource ds = new HikariDataSource(config);
+            // Test connection immediately
+            try (Connection conn = ds.getConnection()) {
+                logger.info("Successfully connected to external PostgreSQL database!");
+            }
+            return ds;
+        } catch (Exception ex) {
+            logger.warn("Could not connect to external PostgreSQL database ({}). Falling back to built-in H2 in-memory database.", ex.getMessage());
+            return createH2DataSource();
         }
-
-        // Connection pool settings for Render / Cloud stability
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(2);
-        config.setIdleTimeout(30000);
-        config.setConnectionTimeout(30000);
-
-        return new HikariDataSource(config);
     }
 }
