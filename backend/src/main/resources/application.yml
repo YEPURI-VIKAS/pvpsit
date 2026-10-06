@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: facility-management
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:facilitydb;DB_CLOSE_DELAY=-1}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.h2.Driver}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    database-platform: ${SPRING_JPA_DATABASE_PLATFORM:org.hibernate.dialect.H2Dialect}
+    hibernate:
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
+    show-sql: true
+
+app:
+  jwt:
+    # A 256-bit key encoded in Base64 (or a long secret phrase for signing)
+    secret: ${APP_JWT_SECRET:dGhpc2lzYW1leHRyZW1lbHlzdHJvbmdzZWNyZXRrZXlmb3Jqd3R0b2tlbnNpZ25pbmdjYW1wdXNmYWNpbGl0eW1hbmFnZW1lbnQ=}
+    expiration-ms: 86400000 # 24 hours
+server:
+  port: ${PORT:8080}
