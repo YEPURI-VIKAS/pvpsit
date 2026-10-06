@@ -26,6 +26,7 @@ public class UserController {
             map.put("role", user.getRole());
             map.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
             map.put("lastLogin", user.getLastLogin() != null ? user.getLastLogin().toString() : null);
+            map.put("avatarUrl", user.getAvatarUrl());
             return map;
         }).collect(Collectors.toList());
     }

@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, fullName: string, role: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUser: (updatedUser: AppUser) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +30,7 @@ function mapBackendUser(backendUser: any): AppUser {
     user_metadata: {
       role: backendUser.role,
       full_name: backendUser.fullName,
+      avatar_url: backendUser.avatarUrl || backendUser.avatar_url || '',
     },
   };
 }
@@ -45,12 +47,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (token && storedUser) {
       try {
         setUser(JSON.parse(storedUser));
-        // Optionally, verify token with backend here:
+        // Verify token with backend
         api.get<any>('/auth/profile').then(profile => {
-           // Token is valid
            setUser(mapBackendUser(profile));
+           localStorage.setItem('app_user', JSON.stringify(mapBackendUser(profile)));
         }).catch(() => {
-           // Token is invalid/expired
            localStorage.removeItem('jwt_token');
            localStorage.removeItem('app_user');
            setUser(null);
@@ -85,8 +86,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  const updateUser = (updatedUser: AppUser) => {
+    localStorage.setItem('app_user', JSON.stringify(updatedUser));
+    setUser(updatedUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, signOut }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, signOut, updateUser }}>
       {!loading && children}
     </AuthContext.Provider>
   );

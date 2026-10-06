@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { User, Mail, Shield, Lock, Eye, EyeOff, Clock, Check, AlertCircle, Edit3, Save } from 'lucide-react';
+import { User, Mail, Shield, Lock, Eye, EyeOff, Clock, Check, AlertCircle, Edit3, Save, Camera, Trash2, KeyRound, History } from 'lucide-react';
 import { api, uploadImage } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -10,8 +10,11 @@ interface LoginEntry {
   ipAddress?: string;
 }
 
+type ProfileTab = 'account' | 'password' | 'history';
+
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
+  const [activeTab, setActiveTab] = useState<ProfileTab>('account');
 
   // Profile editing
   const [isEditingName, setIsEditingName] = useState(false);
@@ -38,7 +41,7 @@ const Profile = () => {
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ show: true, message, type });
-    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+    setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3500);
   };
 
   const fetchLoginHistory = useCallback(async () => {
@@ -66,20 +69,23 @@ const Profile = () => {
     }
     setSavingProfile(true);
     try {
-      const res = await api.put<any>('/auth/profile', { fullName: fullName.trim() });
+      const res = await api.put<any>('/auth/profile', { 
+        fullName: fullName.trim(),
+        avatarUrl: user?.user_metadata?.avatar_url || ''
+      });
 
-      // Update localStorage with new values
-      const updatedUser = {
-        ...user,
-        user_metadata: {
-          ...user?.user_metadata,
-          full_name: fullName.trim(),
-        },
-      };
-      localStorage.setItem('pvpsit_auth_user', JSON.stringify(updatedUser));
+      if (user) {
+        updateUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            full_name: fullName.trim(),
+          },
+        });
+      }
 
       if (res.token) {
-        localStorage.setItem('pvpsit_auth_token', res.token);
+        localStorage.setItem('jwt_token', res.token);
       }
 
       setIsEditingName(false);
@@ -98,33 +104,53 @@ const Profile = () => {
 
     setIsUploadingAvatar(true);
     try {
-      // 1. Upload to storage
       const publicUrl = await uploadImage(file, 'facility-photos');
       
-      // 2. Save to auth profile
       await api.put<any>('/auth/profile', { 
         fullName: user?.user_metadata?.full_name || 'User',
         avatarUrl: publicUrl
       });
 
-      // 3. Update localStorage
-      const updatedUser = {
-        ...user,
-        user_metadata: {
-          ...user?.user_metadata,
-          avatar_url: publicUrl,
-        },
-      };
-      localStorage.setItem('pvpsit_auth_user', JSON.stringify(updatedUser));
+      if (user) {
+        updateUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            avatar_url: publicUrl,
+          },
+        });
+      }
       
-      // Force reload to let AuthContext pick it up, or just rely on onAuthStateChange if it triggers
-      // onAuthStateChange might trigger for updateUser, but we can also just show a toast
-      showToast('Profile picture updated successfully! It may take a moment to appear everywhere.');
-      
-      // Clear input
+      showToast('Profile picture updated successfully!');
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err: any) {
       showToast(err.message || 'Failed to upload profile picture', 'error');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!window.confirm("Are you sure you want to remove your profile picture?")) return;
+    setIsUploadingAvatar(true);
+    try {
+      await api.put<any>('/auth/profile', { 
+        fullName: user?.user_metadata?.full_name || 'User',
+        avatarUrl: ''
+      });
+
+      if (user) {
+        updateUser({
+          ...user,
+          user_metadata: {
+            ...user.user_metadata,
+            avatar_url: '',
+          },
+        });
+      }
+      showToast('Profile picture removed.');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to remove picture', 'error');
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -179,7 +205,7 @@ const Profile = () => {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Toast */}
+      {/* Toast Notification */}
       {toast.show && (
         <div className={`fixed top-24 right-8 z-50 px-5 py-3 rounded-2xl shadow-xl flex items-center animate-in slide-in-from-top-4 fade-in duration-300 ${
           toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
@@ -191,8 +217,8 @@ const Profile = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">My Profile</h1>
-        <p className="text-gray-500 mt-1 font-medium">Manage your account information and security settings.</p>
+        <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">Profile & Settings</h1>
+        <p className="text-gray-500 mt-1 font-medium">Manage your personal information, security, and sign-in activity.</p>
       </div>
 
       {/* Two-column layout */}
@@ -206,6 +232,7 @@ const Profile = () => {
                 <div 
                   className="group relative w-24 h-24 rounded-full flex items-center justify-center text-white text-2xl font-extrabold shadow-lg border-4 border-white overflow-hidden bg-gradient-to-br from-[#1E3A8A] to-indigo-400 cursor-pointer"
                   onClick={() => fileInputRef.current?.click()}
+                  title="Click to change profile picture"
                 >
                   {user?.user_metadata?.avatar_url ? (
                     <img 
@@ -222,7 +249,7 @@ const Profile = () => {
                     {isUploadingAvatar ? (
                       <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <Edit3 size={20} className="text-white drop-shadow-md" />
+                      <Camera size={22} className="text-white drop-shadow-md" />
                     )}
                   </div>
                 </div>
@@ -237,6 +264,29 @@ const Profile = () => {
             </div>
 
             <div className="pt-16 pb-6 px-6 text-center">
+              {/* Profile Photo Buttons */}
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingAvatar}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-[#1E3A8A] hover:bg-blue-100 rounded-lg text-xs font-semibold transition-all"
+                >
+                  <Camera size={13} />
+                  {user?.user_metadata?.avatar_url ? 'Change Photo' : 'Upload Photo'}
+                </button>
+                {user?.user_metadata?.avatar_url && (
+                  <button
+                    onClick={handleRemoveAvatar}
+                    disabled={isUploadingAvatar}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-red-600 hover:bg-red-50 rounded-lg text-xs font-semibold transition-all"
+                    title="Remove Photo"
+                  >
+                    <Trash2 size={13} />
+                    Remove
+                  </button>
+                )}
+              </div>
+
               {/* Name */}
               {isEditingName ? (
                 <div className="flex items-center justify-center gap-2 mb-2">
@@ -264,6 +314,7 @@ const Profile = () => {
                       setIsEditingName(true);
                     }}
                     className="p-1.5 text-gray-400 hover:text-[#1E3A8A] hover:bg-blue-50 rounded-lg transition-all"
+                    title="Edit Name"
                   >
                     <Edit3 size={14} />
                   </button>
@@ -305,191 +356,311 @@ const Profile = () => {
           </div>
         </div>
 
-        {/* Right Column — Password + History (3 cols) */}
+        {/* Right Column — Tabbed Settings with Anchor Buttons (3 cols) */}
         <div className="lg:col-span-3 space-y-6">
-          {/* Change Password Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-              <Lock size={18} className="text-[#1E3A8A]" />
-              Change Password
-            </h3>
-            <p className="text-xs text-gray-500 mb-5">Update your password to keep your account secure.</p>
+          {/* Navigation Anchor Buttons / Tabs */}
+          <div className="bg-white rounded-2xl p-2 shadow-sm border border-gray-100 flex gap-2">
+            <a
+              href="#account"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('account');
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs md:text-sm font-bold transition-all ${
+                activeTab === 'account'
+                  ? 'bg-[#1E3A8A] text-white shadow-md shadow-blue-900/10'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <User size={16} />
+              <span>Account Info</span>
+            </a>
 
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              {/* Current password */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Current Password</label>
-                <div className="relative">
-                  <input
-                    type={showCurrentPw ? 'text' : 'password'}
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
-                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all"
-                    placeholder="Enter current password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowCurrentPw(!showCurrentPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showCurrentPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
+            <a
+              href="#change-password"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('password');
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs md:text-sm font-bold transition-all ${
+                activeTab === 'password'
+                  ? 'bg-[#1E3A8A] text-white shadow-md shadow-blue-900/10'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <KeyRound size={16} />
+              <span>Change Password</span>
+            </a>
 
-              {/* New password */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">New Password</label>
-                <div className="relative">
-                  <input
-                    type={showNewPw ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all"
-                    placeholder="Enter new password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPw(!showNewPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {/* Password strength indicator */}
-                {newPassword && (
-                  <div className="mt-2">
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-300 ${passwordStrength.color}`}
-                        style={{ width: passwordStrength.width }}
-                      />
-                    </div>
-                    <p className={`text-xs mt-1 font-medium ${
-                      passwordStrength.label === 'Weak' ? 'text-red-500' :
-                      passwordStrength.label === 'Fair' ? 'text-orange-500' :
-                      passwordStrength.label === 'Good' ? 'text-yellow-600' :
-                      'text-emerald-600'
-                    }`}>
-                      {passwordStrength.label}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* Confirm password */}
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Confirm New Password</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPw ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all"
-                    placeholder="Confirm new password"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPw(!showConfirmPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-                {confirmPassword && newPassword !== confirmPassword && (
-                  <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                    <AlertCircle size={12} /> Passwords do not match
-                  </p>
-                )}
-                {confirmPassword && newPassword === confirmPassword && newPassword.length >= 6 && (
-                  <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
-                    <Check size={12} /> Passwords match
-                  </p>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={savingPassword || !currentPassword || !newPassword || newPassword !== confirmPassword}
-                className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#1E3A8A]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {savingPassword ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Updating...
-                  </>
-                ) : (
-                  <>
-                    <Lock size={14} />
-                    Update Password
-                  </>
-                )}
-              </button>
-            </form>
+            <a
+              href="#login-history"
+              onClick={(e) => {
+                e.preventDefault();
+                setActiveTab('history');
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs md:text-sm font-bold transition-all ${
+                activeTab === 'history'
+                  ? 'bg-[#1E3A8A] text-white shadow-md shadow-blue-900/10'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              <History size={16} />
+              <span>Login History</span>
+            </a>
           </div>
 
-          {/* Login History Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
-              <Clock size={18} className="text-[#1E3A8A]" />
-              Login History
-            </h3>
-            <p className="text-xs text-gray-500 mb-5">Your recent sign-in activity.</p>
+          {/* Tab 1: Account Information Details */}
+          {activeTab === 'account' && (
+            <div id="account" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-in fade-in duration-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <User size={18} className="text-[#1E3A8A]" />
+                Account Details & Preferences
+              </h3>
+              <p className="text-xs text-gray-500 mb-5">View and update your display information.</p>
 
-            {historyLoading ? (
-              <div className="flex justify-center py-8">
-                <div className="w-8 h-8 border-4 border-gray-200 border-t-[#1E3A8A] rounded-full animate-spin"></div>
-              </div>
-            ) : loginHistory.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="inline-flex bg-gray-50 p-3 rounded-full text-gray-400 mb-3">
-                  <Clock size={24} />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Full Name</label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all font-medium"
+                  />
                 </div>
-                <p className="text-sm text-gray-500 font-medium">No login history available</p>
-              </div>
-            ) : (
-              <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
-                {loginHistory.slice(0, 20).map((entry, idx) => (
-                  <div
-                    key={entry.id || idx}
-                    className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors group"
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Email Address</label>
+                  <input
+                    type="email"
+                    value={user?.email || ''}
+                    disabled
+                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm bg-gray-50 text-gray-500 cursor-not-allowed font-medium"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">Email address is managed by institutional PVPSIT directory.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Assigned Role</label>
+                  <input
+                    type="text"
+                    value={user?.user_metadata?.role || ''}
+                    disabled
+                    className="w-full border border-gray-200 rounded-xl py-2.5 px-4 text-sm bg-gray-50 text-gray-500 cursor-not-allowed font-medium"
+                  />
+                </div>
+
+                <div className="pt-2">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                    className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#1E40AF] transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm"
                   >
-                    {/* Timeline dot */}
-                    <div className="flex flex-col items-center">
-                      <div className={`w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-[#1E3A8A]' : 'bg-gray-300'}`} />
-                      {idx < loginHistory.length - 1 && (
-                        <div className="w-0.5 h-6 bg-gray-200 mt-1" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 flex items-center gap-2">
-                        <span className="font-semibold text-[#1E3A8A] text-xs">[{entry.action}]</span>
-                        {new Date(entry.timestamp).toLocaleString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                      {entry.ipAddress && (
-                        <p className="text-xs text-gray-400 font-mono mt-0.5">{entry.ipAddress}</p>
-                      )}
-                    </div>
-                    {idx === 0 && (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full uppercase">Latest</span>
+                    {savingProfile ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Saving Changes...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={16} />
+                        Save Profile Details
+                      </>
                     )}
-                  </div>
-                ))}
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Tab 2: Change Password Card */}
+          {activeTab === 'password' && (
+            <div id="change-password" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-in fade-in duration-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <Lock size={18} className="text-[#1E3A8A]" />
+                Change Password
+              </h3>
+              <p className="text-xs text-gray-500 mb-5">Update your password to keep your account secure.</p>
+
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                {/* Current password */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Current Password</label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPw ? 'text' : 'password'}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                      className="w-full border border-gray-200 rounded-xl py-2.5 px-4 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all"
+                      placeholder="Enter current password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPw(!showCurrentPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showCurrentPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* New password */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNewPw ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full border border-gray-200 rounded-xl py-2.5 px-4 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all"
+                      placeholder="Enter new password (min 6 chars)"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPw(!showNewPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {/* Password strength indicator */}
+                  {newPassword && (
+                    <div className="mt-2">
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${passwordStrength.color}`}
+                          style={{ width: passwordStrength.width }}
+                        />
+                      </div>
+                      <p className={`text-xs mt-1 font-medium ${
+                        passwordStrength.label === 'Weak' ? 'text-red-500' :
+                        passwordStrength.label === 'Fair' ? 'text-orange-500' :
+                        passwordStrength.label === 'Good' ? 'text-yellow-600' :
+                        'text-emerald-600'
+                      }`}>
+                        {passwordStrength.label}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm password */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPw ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      minLength={6}
+                      className="w-full border border-gray-200 rounded-xl py-2.5 px-4 pr-10 text-sm outline-none focus:border-[#1E3A8A] focus:ring-2 focus:ring-[#1E3A8A]/10 transition-all"
+                      placeholder="Confirm new password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPw(!showConfirmPw)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showConfirmPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  {confirmPassword && newPassword !== confirmPassword && (
+                    <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                      <AlertCircle size={12} /> Passwords do not match
+                    </p>
+                  )}
+                  {confirmPassword && newPassword === confirmPassword && newPassword.length >= 6 && (
+                    <p className="text-xs text-emerald-600 mt-1 flex items-center gap-1">
+                      <Check size={12} /> Passwords match
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={savingPassword || !currentPassword || !newPassword || newPassword !== confirmPassword}
+                  className="w-full bg-[#1E3A8A] text-white py-2.5 rounded-xl text-sm font-bold hover:bg-[#1E40AF] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {savingPassword ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Updating Password...
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound size={16} />
+                      Update Password
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Tab 3: Login History Card */}
+          {activeTab === 'history' && (
+            <div id="login-history" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-in fade-in duration-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-1 flex items-center gap-2">
+                <History size={18} className="text-[#1E3A8A]" />
+                Recent Sign-in Activity
+              </h3>
+              <p className="text-xs text-gray-500 mb-5">Your complete session and device login history.</p>
+
+              {historyLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-8 h-8 border-4 border-gray-200 border-t-[#1E3A8A] rounded-full animate-spin"></div>
+                </div>
+              ) : loginHistory.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="inline-flex bg-gray-50 p-3 rounded-full text-gray-400 mb-3">
+                    <Clock size={24} />
+                  </div>
+                  <p className="text-sm text-gray-500 font-medium">No login history records found.</p>
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
+                  {loginHistory.slice(0, 30).map((entry, idx) => (
+                    <div
+                      key={entry.id || idx}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors group"
+                    >
+                      {/* Timeline dot */}
+                      <div className="flex flex-col items-center">
+                        <div className={`w-2.5 h-2.5 rounded-full ${idx === 0 ? 'bg-[#1E3A8A]' : 'bg-gray-300'}`} />
+                        {idx < loginHistory.length - 1 && (
+                          <div className="w-0.5 h-6 bg-gray-200 mt-1" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                          <span className="font-semibold text-[#1E3A8A] text-xs">[{entry.action}]</span>
+                          {new Date(entry.timestamp).toLocaleString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })}
+                        </p>
+                        {entry.ipAddress && (
+                          <p className="text-xs text-gray-400 font-mono mt-0.5">IP: {entry.ipAddress}</p>
+                        )}
+                      </div>
+                      {idx === 0 && (
+                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full uppercase border border-emerald-200">Current Session</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -22,6 +22,9 @@ public class User {
     @Column(nullable = false)
     private String role; // 'Student', 'Faculty / Staff', 'Admin'
 
+    @Column(columnDefinition = "TEXT")
+    private String avatarUrl;
+
     @Column
     private LocalDateTime createdAt = LocalDateTime.now();
 
@@ -49,6 +52,8 @@ public class User {
     public void setFullName(String fullName) { this.fullName = fullName; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getLastLogin() { return lastLogin; }

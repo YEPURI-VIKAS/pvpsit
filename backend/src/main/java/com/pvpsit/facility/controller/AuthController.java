@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +32,19 @@ public class AuthController {
     @Autowired
     private LoginHistoryRepository loginHistoryRepository;
 
+    private Map<String, Object> buildUserMap(User user) {
+        Map<String, Object> userMap = new HashMap<>();
+        userMap.put("id", user.getId());
+        userMap.put("email", user.getEmail());
+        userMap.put("fullName", user.getFullName());
+        userMap.put("role", user.getRole());
+        userMap.put("avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
+        userMap.put("avatar_url", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
+        userMap.put("createdAt", user.getCreatedAt() != null ? user.getCreatedAt().toString() : null);
+        userMap.put("lastLogin", user.getLastLogin() != null ? user.getLastLogin().toString() : null);
+        return userMap;
+    }
+
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@RequestBody Map<String, String> request, HttpServletRequest httpRequest) {
         String email = request.get("email");
@@ -43,6 +57,9 @@ public class AuthController {
         }
 
         User user = new User(email, passwordEncoder.encode(password), fullName, role);
+        if (request.containsKey("avatarUrl")) {
+            user.setAvatarUrl(request.get("avatarUrl"));
+        }
         User savedUser = userRepository.save(user);
 
         // Record signup event
@@ -53,12 +70,7 @@ public class AuthController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("token", token);
-        response.put("user", Map.of(
-            "id", savedUser.getId(),
-            "email", savedUser.getEmail(),
-            "fullName", savedUser.getFullName(),
-            "role", savedUser.getRole()
-        ));
+        response.put("user", buildUserMap(savedUser));
 
         return ResponseEntity.ok(response);
     }
@@ -79,7 +91,7 @@ public class AuthController {
         }
 
         // Update user lastLogin timestamp
-        user.setLastLogin(java.time.LocalDateTime.now());
+        user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
         // Record login event
@@ -90,12 +102,7 @@ public class AuthController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("token", token);
-        response.put("user", Map.of(
-            "id", user.getId(),
-            "email", user.getEmail(),
-            "fullName", user.getFullName(),
-            "role", user.getRole()
-        ));
+        response.put("user", buildUserMap(user));
 
         return ResponseEntity.ok(response);
     }
@@ -109,12 +116,7 @@ public class AuthController {
             return ResponseEntity.notFound().build();
         }
         User user = userOpt.get();
-        return ResponseEntity.ok(Map.of(
-            "id", user.getId(),
-            "email", user.getEmail(),
-            "fullName", user.getFullName(),
-            "role", user.getRole()
-        ));
+        return ResponseEntity.ok(buildUserMap(user));
     }
 
     @PutMapping("/profile")
@@ -126,8 +128,13 @@ public class AuthController {
             return ResponseEntity.notFound().build();
         }
         User user = userOpt.get();
-        if (request.containsKey("fullName")) {
+        if (request.containsKey("fullName") && request.get("fullName") != null) {
             user.setFullName(request.get("fullName"));
+        }
+        if (request.containsKey("avatarUrl") && request.get("avatarUrl") != null) {
+            user.setAvatarUrl(request.get("avatarUrl"));
+        } else if (request.containsKey("avatar_url") && request.get("avatar_url") != null) {
+            user.setAvatarUrl(request.get("avatar_url"));
         }
         userRepository.save(user);
 
@@ -135,12 +142,7 @@ public class AuthController {
 
         Map<String, Object> response = new HashMap<>();
         response.put("token", newToken);
-        response.put("user", Map.of(
-            "id", user.getId(),
-            "email", user.getEmail(),
-            "fullName", user.getFullName(),
-            "role", user.getRole()
-        ));
+        response.put("user", buildUserMap(user));
         return ResponseEntity.ok(response);
     }
 
@@ -162,6 +164,7 @@ public class AuthController {
 
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
-        return ResponseEntity.ok(Map.of("message", "Password changed successfully."));
+
+        return ResponseEntity.ok(Map.of("message", "Password updated successfully"));
     }
 }
