@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: pvpsit-facility-backend
+    env: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /api/auth/profile
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: APP_JWT_SECRET
+        generateValue: true
