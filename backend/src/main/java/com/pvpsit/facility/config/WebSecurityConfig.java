@@ -43,8 +43,10 @@ public class WebSecurityConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/health", "/health/**").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/ws", "/ws/**").permitAll() // WebSocket endpoint
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/facilities", "/api/facilities/**").permitAll()
                 .anyRequest().authenticated()
             )
             // Allow H2 console display in iframe
